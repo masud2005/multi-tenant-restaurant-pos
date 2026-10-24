@@ -20,6 +20,7 @@ import { ReservationService } from './reservation.service';
 import {
   CreateReservationDto,
   GetReservationsQueryDto,
+  UpdateReservationDto,
   UpdateReservationSettingsDto,
   UpdateReservationStatusDto,
 } from './dto';
@@ -266,6 +267,56 @@ export class ReservationController {
     return ResponseHelper.success(
       reservation,
       'Reservation status updated successfully',
+    );
+  }
+
+  @Put(':tenantSlug/reservations/:reservationId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.RESERVATIONS_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update reservation details',
+    description: 'Updates reservation guest details, party size, date/time, or table assignment.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug',
+  })
+  @ApiParam({
+    name: 'reservationId',
+    example: 'uuid',
+    description: 'Reservation ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservation updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed or table capacity exceeded',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation, restaurant or table not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Table is already booked during the requested time window',
+  })
+  async updateReservation(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('reservationId') reservationId: string,
+    @Body() dto: UpdateReservationDto,
+  ) {
+    const reservation = await this.reservationService.updateReservation(
+      tenantSlug,
+      reservationId,
+      dto,
+    );
+    return ResponseHelper.success(
+      reservation,
+      'Reservation updated successfully',
     );
   }
 }

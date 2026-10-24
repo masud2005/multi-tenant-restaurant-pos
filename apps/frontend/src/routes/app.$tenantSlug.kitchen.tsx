@@ -84,6 +84,21 @@ function Ticket({ order, action }: { order: Order; action: string }) {
   const [advance, { isLoading }] = useAdvanceKitchenMutation();
   const mins = differenceInMinutes(now, new Date(order.sentToKitchenAt));
   const late = mins >= 15 && order.kitchenStatus !== "ready";
+  const handleAdvance = async () => {
+    try {
+      const res = await advance({ tenantId: tenant.id, orderId: order.id }).unwrap();
+      const statusLabel =
+        res.kitchenStatus === "preparing"
+          ? "is now preparing"
+          : res.kitchenStatus === "ready"
+          ? "is ready for pickup"
+          : "bumped";
+      toast.success(`Ticket ${order.number} ${statusLabel}`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+
   return (
     <article className={cn("rounded-lg border bg-card shadow-sm", late && "border-destructive/60")}>
       <header className={cn("flex items-center justify-between rounded-t-lg border-b px-3 py-2", order.kitchenStatus === "ready" ? "bg-success/15" : late ? "bg-destructive/10" : "bg-primary-soft")}>
@@ -108,7 +123,7 @@ function Ticket({ order, action }: { order: Order; action: string }) {
           size="sm"
           variant={order.kitchenStatus === "ready" ? "outline" : "default"}
           disabled={isLoading}
-          onClick={() => advance({ tenantId: tenant.id, orderId: order.id }).unwrap().catch((e) => toast.error(errorMessage(e)))}
+          onClick={handleAdvance}
         >
           {action}
         </Button>

@@ -40,9 +40,11 @@ const LOYALTY: Record<string, LoyaltySettings> = {
 const CUSTOMERS: Record<string, [string, string, string, number, number, number][]> = {
   // name, phone, email, points, visits, spent
   t_saffron: [
-    ["Ayesha Siddiqua", "+8801711223344", "ayesha@mail.bd", 142, 18, 14200],
-    ["Rahim Uddin", "+8801819556677", "", 38, 5, 3800],
-    ["Farhana Kabir", "+8801915889900", "farhana.k@mail.bd", 610, 41, 61000],
+    ["Tanvir Hossain", "+8801711223344", "tanvir.hossain@gmail.com", 95, 12, 8500],
+    ["Farhana Ahmed", "+8801811223344", "farhana.ahmed@yahoo.com", 210, 24, 16200],
+    ["Rakibul Islam", "+8801911223344", "rakibul.pos@outlook.com", 14, 2, 1400],
+    ["Nusrat Jahan", "+8801611223344", "nusrat.jahan@gmail.com", 480, 35, 32000],
+    ["Mahmudur Rahman", "+8801511223344", "mahmud.rahman@live.com", 5, 1, 550],
   ],
   t_harbor: [
     ["Jamie Chen", "+14155550101", "jamie@mail.com", 86, 9, 86],
@@ -64,7 +66,11 @@ const RIDERS: Record<string, [string, string][]> = {
 };
 
 const PROMOS: Record<string, [string, string, "percent" | "amount", number, number][]> = {
-  t_saffron: [["Weekday lunch", "LUNCH10", "percent", 10, 800], ["Family feast", "FEAST200", "amount", 200, 2500]],
+  t_saffron: [
+    ["Holiday Special Feast", "HOLIDAY15", "percent", 15, 500],
+    ["Winter Warmup Festival", "WINTER20", "percent", 20, 800],
+    ["Puja Dhamaka Mega Offer", "PUJA100", "amount", 100, 700],
+  ],
   t_harbor: [["Happy hour", "HAPPY15", "percent", 15, 20]],
   t_lumen: [["Morning combo", "MORNING1", "amount", 1, 5]],
 };
@@ -170,20 +176,44 @@ export function buildPeople(tenantId: string, orders: Order[]): PeopleData {
     };
   });
 
-  const promotions: Promotion[] = (PROMOS[tenantId] ?? []).map(([name, code, kind, value, minSpend], i) => ({
-    id: `${p}_promo_${i}`,
-    tenantId,
-    name,
-    code,
-    kind,
-    value,
-    minSpend,
-    startsAt: day(-14),
-    endsAt: day(30),
-    active: true,
-    uses: 3 + i * 4,
-    maxUses: null,
-  }));
+  const promotions: Promotion[] = (PROMOS[tenantId] ?? []).map(([name, code, kind, value, minSpend], i) => {
+    let startsAt = day(-14);
+    let endsAt = day(30);
+    let uses = 3 + i * 4;
+    let maxUses: number | null = null;
+
+    if (code === "HOLIDAY15") {
+      startsAt = day(-5);
+      endsAt = day(15);
+      uses = 24;
+      maxUses = 150;
+    } else if (code === "WINTER20") {
+      startsAt = day(10);
+      endsAt = day(45);
+      uses = 0;
+      maxUses = 200;
+    } else if (code === "PUJA100") {
+      startsAt = day(-30);
+      endsAt = day(-3);
+      uses = 100;
+      maxUses = 100;
+    }
+
+    return {
+      id: `${p}_promo_${i}`,
+      tenantId,
+      name,
+      code,
+      kind,
+      value,
+      minSpend,
+      startsAt,
+      endsAt,
+      active: true,
+      uses,
+      maxUses,
+    };
+  });
 
   const riders: Rider[] = (RIDERS[tenantId] ?? []).flatMap(([name, phone], i) =>
     branches.map((b) => ({ id: `${p}_rider_${b.id}_${i}`, tenantId, branchId: b.id, name, phone })),

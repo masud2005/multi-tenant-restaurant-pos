@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ReservationStatus } from '../../../../prisma/generated/client';
 
 export class UpdateReservationStatusDto {
@@ -8,15 +9,17 @@ export class UpdateReservationStatusDto {
     enum: ReservationStatus,
     example: ReservationStatus.SEATED,
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
   @IsEnum(ReservationStatus)
   @IsNotEmpty()
   status: ReservationStatus;
 
   @ApiPropertyOptional({
     description: 'Optional: Assign or change table ID when seating the guest',
-    example: '93f9e2e6-a2a2-4a57-b08e-173693e50772',
+    example: 't_se_g1',
   })
-  @IsUUID()
+  @Transform(({ value }) => (value === null || value === '' || value === 'none' ? undefined : value))
+  @IsString()
   @IsOptional()
   tableId?: string;
 }

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -66,6 +67,8 @@ export class RecipeController {
 
   @Put(':tenantSlug/menu-items/:itemId/recipe')
   @Put(':tenantSlug/recipes/:itemId')
+  @Post(':tenantSlug/menu-items/:itemId/recipe')
+  @Post(':tenantSlug/recipes/:itemId')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(Permission.MENU_MANAGE)
   @ApiBearerAuth()

@@ -60,6 +60,7 @@ export const peopleApi = api3.injectEndpoints({
     saveBranch: b.mutation<Branch, T<people.BranchInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveBranch(tenantId, i)), invalidatesTags: ["Branch", "Inventory"] }),
     promotions: b.query<Promotion[], string>({ queryFn: (t) => run(() => people.listPromotions(t)), providesTags: ["Promotion"] }),
     savePromotion: b.mutation<Promotion, T<people.PromotionInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.savePromotion(tenantId, i)), invalidatesTags: ["Promotion"] }),
+    deletePromotion: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deletePromotion(tenantId, id)), invalidatesTags: ["Promotion"] }),
     validatePromotion: b.mutation<Promotion, T<{ code: string; subtotal: number }>>({ queryFn: ({ tenantId, code, subtotal }) => run(() => people.validatePromotion(tenantId, code, subtotal)) }),
   }),
 });
@@ -96,5 +97,6 @@ export const {
   useSaveBranchMutation,
   usePromotionsQuery,
   useSavePromotionMutation,
+  useDeletePromotionMutation,
   useValidatePromotionMutation,
 } = peopleApi;

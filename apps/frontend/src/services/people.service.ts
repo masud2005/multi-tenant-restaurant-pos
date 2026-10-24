@@ -1,6 +1,15 @@
 import { ApiError, commit, latency, tenantDb, uid } from "@/mocks/db";
 import type { TenantDb } from "@/mocks/seed";
 import { round2 } from "@/lib/pricing";
+import { backendFetch } from "./api-client";
+import {
+  createPromotionApi,
+  deletePromotionApi,
+  getPromotionsApi,
+  mapBackendPromotionToDomain,
+  updatePromotionApi,
+  validatePromotionApi,
+} from "./promotion.service";
 import type {
   AttendanceRecord,
   Branch,
@@ -105,7 +114,43 @@ export async function getLoyaltySettings(tenantId: string) {
 }
 
 // ---------- Reservations ----------
+function toFrontendReservation(r: any): Reservation {
+  return {
+    id: r.id,
+    tenantId: r.tenantId,
+    branchId: r.branchId,
+    customerName: r.customerName,
+    phone: r.phone ?? "",
+    partySize: r.partySize ?? 2,
+    at: typeof r.at === "string" ? r.at : new Date(r.at).toISOString(),
+    durationMin: r.durationMin ?? 90,
+    tableId: r.tableId ?? null,
+    tableName: r.tableName ?? r.table?.name ?? null,
+    status: (r.status?.toLowerCase() ?? "booked") as ReservationStatus,
+    notes: r.notes ?? "",
+    createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(r.createdAt).toISOString(),
+  };
+}
+
 export async function listReservations(tenantId: string, branchId: string): Promise<Reservation[]> {
+  try {
+    const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+    const res = await backendFetch<any[]>(`/tenants/${tenantId}/reservations${qs}`);
+    if (Array.isArray(res)) {
+      const mapped = res.map(toFrontendReservation).sort((a, b) => a.at.localeCompare(b.at));
+      const db = tenantDb(tenantId);
+      db.reservations = mapped;
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for reservations, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).reservations.filter((r) => r.branchId === branchId).sort((a, b) => a.at.localeCompare(b.at));
 }
@@ -119,21 +164,71 @@ const overlaps = (a: Reservation | ReservationInput, b: Reservation) => {
 };
 
 export async function saveReservation(tenantId: string, input: ReservationInput): Promise<Reservation> {
-  await latency();
-  const db = tenantDb(tenantId);
-  if (!input.customerName.trim()) throw new ApiError(422, "Guest name is required.");
+  const customerName = input.customerName.trim();
+  if (!customerName) throw new ApiError(422, "Guest name is required.");
   if (!Number.isInteger(input.partySize) || input.partySize < 1 || input.partySize > 40) throw new ApiError(422, "Party size must be 1–40.");
   if (Number.isNaN(Date.parse(input.at))) throw new ApiError(422, "Choose a date and time.");
+
+  try {
+    const body = {
+      branchId: input.branchId,
+      customerName,
+      phone: input.phone?.trim() || "",
+      partySize: input.partySize,
+      at: new Date(input.at).toISOString(),
+      durationMin: input.durationMin || 90,
+      tableId: input.tableId && input.tableId !== "none" ? input.tableId : null,
+      notes: input.notes?.trim() || "",
+    };
+
+    let backendRes: any;
+    if (input.id) {
+      backendRes = await backendFetch<any>(`/tenants/${tenantId}/reservations/${input.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } else {
+      backendRes = await backendFetch<any>(`/tenants/${tenantId}/reservations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+
+    if (backendRes && backendRes.id) {
+      const saved = toFrontendReservation(backendRes);
+      const db = tenantDb(tenantId);
+      const idx = db.reservations.findIndex((r) => r.id === saved.id);
+      if (idx >= 0) {
+        db.reservations[idx] = saved;
+      } else {
+        db.reservations.push(saved);
+      }
+      commit(tenantId);
+      return saved;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for saving reservation, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
+  // Fallback to local DB
+  await latency();
+  const db = tenantDb(tenantId);
   let tableName: string | null = null;
-  if (input.tableId) {
-    const t = db.tables.find((x) => x.id === input.tableId && x.branchId === input.branchId);
+  if (input.tableId && input.tableId !== "none") {
+    const t = db.tables.find((x) => (x.id === input.tableId || x.name === input.tableId) && x.branchId === input.branchId);
     if (!t) throw new ApiError(422, "Table not found in this branch.");
     if (t.seats < input.partySize) throw new ApiError(422, `${t.name} seats only ${t.seats}.`);
     const clash = db.reservations.find((r) => r.id !== input.id && r.tableId === t.id && (r.status === "booked" || r.status === "seated") && overlaps(input, r));
     if (clash) throw new ApiError(409, `${t.name} is already booked for ${clash.customerName} at that time.`);
     tableName = t.name;
   }
-  const data = { ...input, customerName: input.customerName.trim(), phone: input.phone.trim(), notes: input.notes.trim(), tableName };
+  const data = { ...input, customerName, phone: input.phone.trim(), notes: input.notes.trim(), tableName, tableId: input.tableId === "none" ? null : input.tableId };
   if (input.id) {
     const r = db.reservations.find((x) => x.id === input.id);
     if (!r) throw new ApiError(404, "Reservation not found.");
@@ -159,6 +254,35 @@ const RES_FLOW: Record<ReservationStatus, ReservationStatus[]> = {
 };
 
 export async function setReservationStatus(tenantId: string, id: string, status: ReservationStatus): Promise<Reservation> {
+  try {
+    const backendRes = await backendFetch<any>(`/tenants/${tenantId}/reservations/${id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: status.toUpperCase() }),
+    });
+
+    if (backendRes && backendRes.id) {
+      const updated = toFrontendReservation(backendRes);
+      const db = tenantDb(tenantId);
+      const idx = db.reservations.findIndex((r) => r.id === updated.id);
+      if (idx >= 0) {
+        db.reservations[idx] = updated;
+      }
+      const t = updated.tableId ? db.tables.find((x) => x.id === updated.tableId) : undefined;
+      if (t && status === "seated" && t.status === "available") t.status = "reserved";
+      if (t && status !== "seated" && t.status === "reserved") t.status = "available";
+      commit(tenantId);
+      return updated;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for setting reservation status, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
+  // Fallback to local DB
   await latency();
   const db = tenantDb(tenantId);
   const r = db.reservations.find((x) => x.id === id);
@@ -279,6 +403,28 @@ export const hoursWorked = (a: AttendanceRecord, now = Date.now()) => round2(((a
 
 // ---------- Branches ----------
 export async function listAllBranches(tenantId: string): Promise<Branch[]> {
+  try {
+    const backendBranches = await backendFetch<Branch[]>(`/tenants/${tenantId}/branches`);
+    if (Array.isArray(backendBranches)) {
+      const db = tenantDb(tenantId);
+      db.branches = backendBranches.map((b) => ({
+        id: b.id,
+        tenantId: b.tenantId || tenantId,
+        name: b.name,
+        address: b.address || "",
+        phone: b.phone || "",
+      }));
+      commit(tenantId);
+      return db.branches;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for branches, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).branches;
 }
@@ -286,11 +432,69 @@ export async function listAllBranches(tenantId: string): Promise<Branch[]> {
 export type BranchInput = Pick<Branch, "name" | "address" | "phone"> & { id?: string | undefined };
 
 export async function saveBranch(tenantId: string, input: BranchInput): Promise<Branch> {
-  await latency();
-  const db = tenantDb(tenantId);
   const name = input.name.trim();
   if (!name) throw new ApiError(422, "Branch name is required.");
-  if (db.branches.some((b) => b.name.toLowerCase() === name.toLowerCase() && b.id !== input.id)) throw new ApiError(409, "A branch with this name already exists.");
+
+  try {
+    let saved: Branch;
+    if (input.id) {
+      saved = await backendFetch<Branch>(`/tenants/${tenantId}/branches/${input.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name,
+          address: input.address?.trim() || "",
+          phone: input.phone?.trim() || "",
+        }),
+      });
+    } else {
+      saved = await backendFetch<Branch>(`/tenants/${tenantId}/branches`, {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          address: input.address?.trim() || "",
+          phone: input.phone?.trim() || "",
+        }),
+      });
+    }
+
+    if (saved && saved.id) {
+      const db = tenantDb(tenantId);
+      const existing = db.branches.find((x) => x.id === saved.id);
+      const mapped: Branch = {
+        id: saved.id,
+        tenantId: saved.tenantId || tenantId,
+        name: saved.name,
+        address: saved.address || "",
+        phone: saved.phone || "",
+      };
+
+      if (existing) {
+        Object.assign(existing, mapped);
+      } else {
+        db.branches.push(mapped);
+        if (db.branches.length > 1 && db.ingredients.length > 0) {
+          const template = db.ingredients.filter((i) => i.branchId === db.branches[0]!.id);
+          for (const i of template) {
+            db.ingredients.push({ ...i, id: `${mapped.id}_ing_${i.key}`, branchId: mapped.id, stock: 0 });
+          }
+        }
+      }
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unreachable for saving branch, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
+  await latency();
+  const db = tenantDb(tenantId);
+  if (db.branches.some((b) => b.name.toLowerCase() === name.toLowerCase() && b.id !== input.id)) {
+    throw new ApiError(409, "A branch with this name already exists.");
+  }
   const data = { name, address: input.address.trim(), phone: input.phone.trim() };
   if (input.id) {
     const b = db.branches.find((x) => x.id === input.id);
@@ -326,11 +530,41 @@ export function checkPromotion(db: TenantDb, code: string, subtotal: number, tod
 }
 
 export async function validatePromotion(tenantId: string, code: string, subtotal: number): Promise<Promotion> {
+  try {
+    const res = await validatePromotionApi(tenantId, code, subtotal);
+    if (res?.promotion) {
+      return mapBackendPromotionToDomain(res.promotion);
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for validating promotion, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency(100, 200);
   return checkPromotion(tenantDb(tenantId), code, subtotal);
 }
 
 export async function listPromotions(tenantId: string): Promise<Promotion[]> {
+  try {
+    const backendPromos = await getPromotionsApi(tenantId);
+    if (Array.isArray(backendPromos)) {
+      const mapped = backendPromos.map(mapBackendPromotionToDomain);
+      const db = tenantDb(tenantId);
+      db.promotions = mapped;
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 503 || err.status === 404)) {
+      console.warn("Backend unavailable for promotions, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).promotions;
 }
@@ -338,14 +572,87 @@ export async function listPromotions(tenantId: string): Promise<Promotion[]> {
 export type PromotionInput = Omit<Promotion, "id" | "tenantId" | "uses"> & { id?: string | undefined };
 
 export async function savePromotion(tenantId: string, input: PromotionInput): Promise<Promotion> {
-  await latency();
-  const db = tenantDb(tenantId);
   const code = input.code.trim().toUpperCase();
   if (!input.name.trim()) throw new ApiError(422, "Name is required.");
   if (!/^[A-Z0-9]{3,16}$/.test(code)) throw new ApiError(422, "Code must be 3–16 letters or digits.");
-  if (db.promotions.some((p) => p.code === code && p.id !== input.id)) throw new ApiError(409, "That code is already used.");
   if (!(input.value > 0) || (input.kind === "percent" && input.value > 100)) throw new ApiError(422, "Enter a valid discount value.");
   if (input.endsAt < input.startsAt) throw new ApiError(422, "End date must be on or after the start date.");
+
+  // If creating new promotion, call backend API
+  if (!input.id) {
+    try {
+      const created = await createPromotionApi(tenantId, {
+        name: input.name,
+        code,
+        kind: input.kind,
+        value: input.value,
+        minSpend: input.minSpend,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        maxUses: input.maxUses,
+        active: input.active,
+      });
+
+      if (created && created.id) {
+        const mapped = mapBackendPromotionToDomain(created);
+        const db = tenantDb(tenantId);
+        const existingIdx = db.promotions.findIndex((p) => p.id === mapped.id || p.code === mapped.code);
+        if (existingIdx >= 0) {
+          db.promotions[existingIdx] = mapped;
+        } else {
+          db.promotions.unshift(mapped);
+        }
+        commit(tenantId);
+        return mapped;
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 503) {
+        console.warn("Backend unavailable for creating promotion, falling back to local DB");
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  // If updating existing promotion, call backend API
+  if (input.id) {
+    try {
+      const updated = await updatePromotionApi(tenantId, input.id, {
+        name: input.name,
+        code,
+        kind: input.kind,
+        value: input.value,
+        minSpend: input.minSpend,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        maxUses: input.maxUses,
+        active: input.active,
+      });
+
+      if (updated && updated.id) {
+        const mapped = mapBackendPromotionToDomain(updated);
+        const db = tenantDb(tenantId);
+        const existingIdx = db.promotions.findIndex((p) => p.id === mapped.id);
+        if (existingIdx >= 0) {
+          db.promotions[existingIdx] = mapped;
+        } else {
+          db.promotions.unshift(mapped);
+        }
+        commit(tenantId);
+        return mapped;
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 503) {
+        console.warn("Backend unavailable for updating promotion, falling back to local DB");
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  await latency();
+  const db = tenantDb(tenantId);
+  if (db.promotions.some((p) => p.code === code && p.id !== input.id)) throw new ApiError(409, "That code is already used.");
   const { id: _id, ...rest } = input;
   void _id;
   const data = { ...rest, name: input.name.trim(), code };
@@ -361,3 +668,28 @@ export async function savePromotion(tenantId: string, input: PromotionInput): Pr
   commit(tenantId);
   return p;
 }
+
+export async function deletePromotion(
+  tenantId: string,
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await deletePromotionApi(tenantId, id);
+    const db = tenantDb(tenantId);
+    db.promotions = db.promotions.filter((p) => p.id !== id);
+    commit(tenantId);
+    return res;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn(
+        "Backend unavailable for deleting promotion, falling back to local DB"
+      );
+      const db = tenantDb(tenantId);
+      db.promotions = db.promotions.filter((p) => p.id !== id);
+      commit(tenantId);
+      return { success: true, message: "Promotion deleted locally" };
+    }
+    throw err;
+  }
+}
+

@@ -1,0 +1,24 @@
+model Supplier {
+  id           String    @id @default(uuid())
+  tenantId     String
+  name         String
+  contact      String?   @default("")
+  phone        String    @default("")
+  email        String?   @default("")
+  address      String?   @default("")
+  supplies     String?   @default("")
+  paymentTerms String?   @default("")
+  active       Boolean   @default(true)
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrders  PurchaseOrder[]
+  goodsReceipts   GoodsReceipt[]
+  supplierReturns SupplierReturn[]
+
+  @@unique([tenantId, name])
+  @@map("suppliers")
+}

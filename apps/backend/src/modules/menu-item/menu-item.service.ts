@@ -13,9 +13,11 @@ export class MenuItemService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createMenuItem(tenantSlug: string, dto: CreateMenuItemDto) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -135,9 +137,11 @@ export class MenuItemService {
   }
 
   async getAllMenuItems(tenantSlug: string, query?: GetMenuItemsQueryDto) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -211,9 +215,11 @@ export class MenuItemService {
     itemId: string,
     branchId?: string,
   ) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -457,9 +463,11 @@ export class MenuItemService {
    * modifier groups, and combos) in a single optimized query.
    */
   async getPosMenuBundle(tenantSlug: string, branchId?: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {

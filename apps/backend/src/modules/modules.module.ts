@@ -13,6 +13,14 @@ import { StockMovementModule } from './stock-movement/stock-movement.module';
 import { TableModule } from './table/table.module';
 import { OrderModule } from './order/order.module';
 import { ReservationModule } from './reservation/reservation.module';
+import { SupplierModule } from './supplier/supplier.module';
+import { PurchaseOrderModule } from './purchase-order/purchase-order.module';
+import { GoodsReceiptModule } from './goods-receipt/goods-receipt.module';
+import { SupplierReturnModule } from './supplier-return/supplier-return.module';
+import { CustomerModule } from './customer/customer.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
+import { FinanceModule } from './finance/finance.module';
+import { PromotionModule } from './promotion/promotion.module';
 
 @Module({
   imports: [
@@ -30,6 +38,14 @@ import { ReservationModule } from './reservation/reservation.module';
     TableModule,
     OrderModule,
     ReservationModule,
+    SupplierModule,
+    PurchaseOrderModule,
+    GoodsReceiptModule,
+    SupplierReturnModule,
+    CustomerModule,
+    LoyaltyModule,
+    FinanceModule,
+    PromotionModule,
   ],
   exports: [
     TenantRoleModule,
@@ -45,6 +61,14 @@ import { ReservationModule } from './reservation/reservation.module';
     TableModule,
     OrderModule,
     ReservationModule,
+    SupplierModule,
+    PurchaseOrderModule,
+    GoodsReceiptModule,
+    SupplierReturnModule,
+    CustomerModule,
+    LoyaltyModule,
+    FinanceModule,
+    PromotionModule,
   ],
 })
 export class ModulesModule {}

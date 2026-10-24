@@ -12,9 +12,11 @@ export class BranchService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createBranch(tenantSlug: string, dto: CreateBranchDto) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -53,9 +55,11 @@ export class BranchService {
   }
 
   async getAllBranches(tenantSlug: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -70,9 +74,11 @@ export class BranchService {
   }
 
   async getBranchById(tenantSlug: string, branchId: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {

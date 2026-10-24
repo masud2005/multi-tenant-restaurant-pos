@@ -13,9 +13,11 @@ export interface BackofficeData {
 
 const SUPPLIERS: Record<string, [string, string, string, string, string[]][]> = {
   t_saffron: [
-    ["Karwan Bazar Meats", "Habib Mia", "+880 1811-200300", "orders@kbmeats.bd", ["chicken", "lamb"]],
-    ["Golden Grain Traders", "Shirin Akter", "+880 1911-400500", "sales@goldengrain.bd", ["rice", "flour", "spices"]],
-    ["Fresh Dairy Co.", "Tanvir Hasan", "+880 1711-600700", "hello@freshdairy.bd", ["yogurt", "paneer", "mango"]],
+    ["Bengal Meat Bangladesh Ltd", "মোহাম্মদ রফিকুল ইসলাম", "+880 1711-234567", "sales@bengalmeatbd.com", ["mutton", "beef"]],
+    ["Teer Agro & Food Industries", "আব্দুল হালিম", "+880 1819-345678", "corporate.sales@citygroup.com.bd", ["rice"]],
+    ["Meghna Spices & Pure Mustard Oils", "কামাল উদ্দিন", "+880 1912-456789", "supply@meghnagroup.biz", ["oil"]],
+    ["Aarong Dairy & Agro Products", "মনিরুল হাসান", "+880 1613-567890", "dairy-sales@brac.net", ["ghee", "curd"]],
+    ["Dhaka Eco Packaging & Disposables", "শাহিন আলম", "+880 1514-678901", "info@dhakapackaging.com", ["boxes"]],
   ],
   t_harbor: [
     ["Bay Noodle Works", "Amy Chen", "+1 415-555-0201", "amy@baynoodle.com", ["noodles", "bao"]],
@@ -31,8 +33,8 @@ const SUPPLIERS: Record<string, [string, string, string, string, string[]][]> = 
 
 const COMBOS: Record<string, [string, string, [number, number][], number][]> = {
   t_saffron: [
-    ["Tikka Thali", "Chicken tikka, naan, jeera rice, lassi", [[0, 1], [7, 1], [8, 1], [9, 1]], 990],
-    ["Biryani Feast", "Kacchi biryani with masala chai", [[6, 1], [10, 1]], 720],
+    ["শাহী কাচ্চি ও বোরহানি কম্বো", "ঢাকা শাহী কাচ্চি ও ১ গ্লাস স্পেশাল বোরহানি", [[0, 1], [3, 1]], 530],
+    ["নবাবী মেজবানি ফিস্ট", "গরুর কালা ভুনা, চিকেন রোস্ট ও শাহী টুকরা", [[1, 1], [2, 1], [4, 1]], 740],
   ],
   t_harbor: [
     ["Ramen + Bao Set", "Harbor ramen, pork belly bao, yuzu soda", [[0, 1], [3, 1], [7, 1]], 24],

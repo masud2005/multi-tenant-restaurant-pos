@@ -29,6 +29,7 @@ enum PurchaseOrderStatus {
   DRAFT
   SENT
   PARTIAL
+  PARTIALLY_RECEIVED
   RECEIVED
   CANCELLED
 }
@@ -97,3 +98,17 @@ enum ReservationStatus {
   CANCELLED
   NO_SHOW
 }
+
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+  ADJUSTED
+  EXPIRED
+  REFUNDED
+}
+
+enum DiscountKind {
+  PERCENT
+  AMOUNT
+}
+
