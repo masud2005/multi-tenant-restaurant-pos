@@ -11,6 +11,8 @@ model Reservation {
   tableName    String?
   status       ReservationStatus @default(BOOKED)
   notes        String?           @default("")
+  isDeleted    Boolean           @default(false)
+  deletedAt    DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -19,6 +21,7 @@ model Reservation {
   table  DiningTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, branchId, at])
+  @@index([tenantId, isDeleted])
   @@map("reservations")
 }
 

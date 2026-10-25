@@ -17,13 +17,14 @@ import { CreateOrderDiscountDto } from './create-order-discount.dto';
 import { CreateOrderPaymentDto } from './create-order-payment.dto';
 
 export class CreateOrderDto {
-  @ApiProperty({
-    description: 'Branch ID where this order is being placed',
+  @ApiPropertyOptional({
+    description: 'Branch ID where this order is being placed (defaults to first active branch)',
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   })
-  @IsUUID('4', { message: 'Branch ID must be a valid UUID' })
-  @IsNotEmpty({ message: 'Branch ID is required' })
-  branchId: string;
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString({ message: 'Branch ID must be a string' })
+  @IsOptional()
+  branchId?: string;
 
   @ApiProperty({
     description: 'Type of order (DINE_IN, TAKEAWAY, PICKUP, COUNTER, DELIVERY)',
@@ -46,7 +47,8 @@ export class CreateOrderDto {
     description: 'Dining table ID (required for DINE_IN orders)',
     example: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
   })
-  @IsUUID('4', { message: 'Table ID must be a valid UUID' })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString({ message: 'Table ID must be a string' })
   @IsOptional()
   tableId?: string;
 
@@ -55,10 +57,20 @@ export class CreateOrderDto {
     example: 'T-1',
     maxLength: 30,
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @MaxLength(30, { message: 'Table name cannot exceed 30 characters' })
   tableName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Registered customer ID (for loyalty & purchase history)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString({ message: 'Customer ID must be a string' })
+  @IsOptional()
+  customerId?: string;
 
   @ApiPropertyOptional({
     description: 'Customer or guest name',
@@ -85,6 +97,7 @@ export class CreateOrderDto {
     example: 'House 12, Road 5, Dhanmondi, Dhaka',
     maxLength: 255,
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @MaxLength(255, { message: 'Delivery address cannot exceed 255 characters' })
@@ -95,6 +108,7 @@ export class CreateOrderDto {
     example: 'VIP customer, serve drinks first',
     maxLength: 255,
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @MaxLength(255, { message: 'Order notes cannot exceed 255 characters' })
@@ -105,6 +119,7 @@ export class CreateOrderDto {
     example: 'Cashier Alice',
     maxLength: 60,
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   @MaxLength(60, { message: 'Created by cannot exceed 60 characters' })

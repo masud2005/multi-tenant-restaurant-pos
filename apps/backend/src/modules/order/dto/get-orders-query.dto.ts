@@ -1,4 +1,5 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetOrdersQueryDto {
@@ -6,7 +7,8 @@ export class GetOrdersQueryDto {
     description: 'Filter orders by branch ID',
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   })
-  @IsUUID('4', { message: 'Branch ID must be a valid UUID' })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString({ message: 'Branch ID must be a string' })
   @IsOptional()
   branchId?: string;
 
@@ -15,6 +17,7 @@ export class GetOrdersQueryDto {
       'Filter orders by status: "active" (in_kitchen, ready, served), "all", or specific status (IN_KITCHEN, READY, SERVED, COMPLETED, CANCELLED)',
     example: 'active',
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   status?: string;
@@ -24,6 +27,7 @@ export class GetOrdersQueryDto {
       'Filter orders by kitchen status: NEW, PREPARING, READY, BUMPED',
     example: 'NEW',
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   kitchenStatus?: string;
@@ -33,6 +37,7 @@ export class GetOrdersQueryDto {
       'Filter orders by order type: DINE_IN, TAKEAWAY, PICKUP, COUNTER, DELIVERY',
     example: 'DINE_IN',
   })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
   @IsString()
   @IsOptional()
   type?: string;
@@ -41,7 +46,8 @@ export class GetOrdersQueryDto {
     description: 'Filter orders by dining table ID',
     example: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
   })
-  @IsUUID('4', { message: 'Table ID must be a valid UUID' })
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString({ message: 'Table ID must be a string' })
   @IsOptional()
   tableId?: string;
 

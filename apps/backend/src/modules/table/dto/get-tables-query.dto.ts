@@ -7,7 +7,7 @@ export class GetTablesQueryDto {
     description: 'Filter tables for a specific branch ID',
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
   })
-  @IsUUID('4', { message: 'Branch ID must be a valid UUID' })
+  @IsString()
   @IsOptional()
   branchId?: string;
 

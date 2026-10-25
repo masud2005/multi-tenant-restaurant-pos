@@ -5,23 +5,23 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TableStatus } from '../../../../prisma/generated/client';
 
 export class CreateTableDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Branch ID where this table belongs',
-    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    example: 'b_se_gulshan',
   })
-  @IsUUID('4', { message: 'Branch ID must be a valid UUID' })
-  @IsNotEmpty({ message: 'Branch ID is required' })
-  branchId: string;
+  @Transform(({ value }) => (value === null || value === '' ? undefined : value))
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 
   @ApiProperty({
     description: 'Table name or number (must be unique per branch)',
@@ -64,6 +64,7 @@ export class CreateTableDto {
     enum: ['square', 'round', 'long'],
     default: 'square',
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase() : value))
   @IsString()
   @IsIn(['square', 'round', 'long'], {
     message: 'Shape must be either "square", "round", or "long"',
@@ -76,6 +77,7 @@ export class CreateTableDto {
     enum: TableStatus,
     default: TableStatus.AVAILABLE,
   })
+  @Transform(({ value }) => (typeof value === 'string' ? (value.toUpperCase() as TableStatus) : value))
   @IsEnum(TableStatus, {
     message: `Status must be one of: ${Object.values(TableStatus).join(', ')}`,
   })

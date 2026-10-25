@@ -3,12 +3,12 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { RequirePermission } from "@/features/tenant/require-permission";
 import { useTenant } from "@/features/tenant/tenant-context";
-import { useSaveSupplierMutation, useSuppliersQuery } from "@/features/backoffice/api";
+import { useDeleteSupplierMutation, useSaveSupplierMutation, useSuppliersQuery } from "@/features/backoffice/api";
 import { withToast } from "@/features/tenant/use-mutation-toast";
-import { DataTable, FieldError, td } from "@/components/common/confirm";
+import { Confirm, DataTable, FieldError, td } from "@/components/common/confirm";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/app/$tenantSlug/suppliers")({
 function Suppliers() {
   const { tenant } = useTenant();
   const list = useSuppliersQuery(tenant.id);
+  const [del] = useDeleteSupplierMutation();
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Supplier | "new" | null>(null);
   const rows = (list.data ?? []).filter((s) => `${s.name} ${s.contact} ${s.supplies}`.toLowerCase().includes(q.trim().toLowerCase()));
@@ -50,7 +51,16 @@ function Suppliers() {
               <td className={`${td} text-muted-foreground`}>{s.supplies.split(",").join(", ")}</td>
               <td className={td}>{s.paymentTerms}</td>
               <td className={td}>{s.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Inactive</Badge>}</td>
-              <td className={`${td} text-right`}><Button size="icon" variant="ghost" aria-label={`Edit ${s.name}`} onClick={() => setEditing(s)}><Pencil className="size-4" /></Button></td>
+              <td className={`${td} whitespace-nowrap text-right`}>
+                <Button size="icon" variant="ghost" aria-label={`Edit ${s.name}`} onClick={() => setEditing(s)}><Pencil className="size-4" /></Button>
+                <Confirm
+                  title={`Delete ${s.name}?`}
+                  body="This supplier will be removed from active lists."
+                  onConfirm={() => withToast(del({ tenantId: tenant.id, id: s.id }), "Supplier deleted")}
+                >
+                  <Button size="icon" variant="ghost" aria-label={`Delete ${s.name}`}><Trash2 className="size-4" /></Button>
+                </Confirm>
+              </td>
             </tr>
           ))}
         </DataTable>

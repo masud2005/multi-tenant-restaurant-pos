@@ -3,13 +3,13 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Pencil, Plus, SlidersHorizontal } from "lucide-react";
+import { Loader2, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useTenant } from "@/features/tenant/tenant-context";
 import { useMoney } from "@/features/tenant/use-money";
 import { useIngredientsQuery } from "@/app/api";
-import { useAdjustStockMutation, useSaveIngredientMutation } from "@/features/backoffice/api";
+import { useAdjustStockMutation, useDeleteIngredientMutation, useSaveIngredientMutation } from "@/features/backoffice/api";
 import { withToast } from "@/features/tenant/use-mutation-toast";
-import { DataTable, FieldError, td } from "@/components/common/confirm";
+import { Confirm, DataTable, FieldError, td } from "@/components/common/confirm";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ function StockLevels() {
   const { tenant, branch, can } = useTenant();
   const money = useMoney();
   const ing = useIngredientsQuery({ tenantId: tenant.id, branchId: branch.id });
+  const [del] = useDeleteIngredientMutation();
   const [q, setQ] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [adjusting, setAdjusting] = useState<Ingredient | null>(null);
@@ -61,6 +62,13 @@ function StockLevels() {
                   <>
                     <Button size="sm" variant="outline" onClick={() => setAdjusting(i)}><SlidersHorizontal className="size-4" /> Adjust</Button>
                     <Button size="icon" variant="ghost" aria-label={`Edit ${i.name}`} onClick={() => setEditing(i)}><Pencil className="size-4" /></Button>
+                    <Confirm
+                      title={`Delete ${i.name}?`}
+                      body="This ingredient will be removed. Existing recipe lines and stock history will be preserved."
+                      onConfirm={() => withToast(del({ tenantId: tenant.id, id: i.id, branchId: branch.id }), "Ingredient deleted")}
+                    >
+                      <Button size="icon" variant="ghost" aria-label={`Delete ${i.name}`}><Trash2 className="size-4" /></Button>
+                    </Confirm>
                   </>
                 )}
               </td>

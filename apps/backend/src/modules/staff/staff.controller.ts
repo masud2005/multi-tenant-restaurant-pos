@@ -18,6 +18,7 @@ import {
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { ResponseHelper } from '../../common/helpers/response.helper';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -121,5 +122,21 @@ export class StaffController {
   ) {
     const result = await this.staffService.deleteStaff(tenantSlug, staffId);
     return ResponseHelper.success(result, 'Staff member removed successfully');
+  }
+
+  @Post(':tenantSlug/staff/:staffId/invite')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.STAFF_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send or resend an invitation link to a staff member' })
+  @ApiParam({ name: 'tenantSlug', example: 'sultans-dine' })
+  @ApiParam({ name: 'staffId', example: 'uuid-string' })
+  @ApiResponse({ status: 200, description: 'Invitation sent successfully' })
+  async reinviteStaff(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('staffId') staffId: string,
+  ) {
+    const result = await this.staffService.reinviteStaff(tenantSlug, staffId);
+    return ResponseHelper.success(result, result.message);
   }
 }

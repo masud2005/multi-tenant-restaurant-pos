@@ -12,8 +12,10 @@ export class RecipeService {
    * calculated against current ingredient unit costs of a specified branch.
    */
   async listRecipeCosts(tenantSlug: string, branchId?: string) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -92,8 +94,10 @@ export class RecipeService {
    * Save or replace recipe lines for a menu item in a single atomic transaction.
    */
   async saveRecipe(tenantSlug: string, menuItemId: string, dto: SaveRecipeDto) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {

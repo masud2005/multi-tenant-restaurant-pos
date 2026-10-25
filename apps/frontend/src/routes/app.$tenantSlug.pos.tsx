@@ -47,6 +47,7 @@ function PosPage() {
   const activeOrders = useOrdersQuery({ tenantId: tenant.id, branchId: branch.id, status: "active" }, { pollingInterval: 6000 });
   const [createOrder, { isLoading: creating }] = useCreateOrderMutation();
   const [addOrderLines, { isLoading: addingLines }] = useAddOrderLinesMutation();
+  const [submittingAction, setSubmittingAction] = useState<"send" | "pay" | null>(null);
   const [category, setCategory] = useState<string>("all");
   const [q, setQ] = useState("");
   const [configuring, setConfiguring] = useState<MenuItem | null>(null);
@@ -108,6 +109,7 @@ function PosPage() {
       toast.error("Delivery needs a phone number and address.");
       return;
     }
+    setSubmittingAction(pay ? "pay" : "send");
     try {
       const order = await createOrder({
         tenantId: tenant.id,
@@ -127,6 +129,8 @@ function PosPage() {
       if (pay) navigate({ to: "/app/$tenantSlug/orders/$orderId", params: { tenantSlug: tenant.slug, orderId: order.id }, search: { pay: true } });
     } catch (e) {
       toast.error(errorMessage(e));
+    } finally {
+      setSubmittingAction(null);
     }
   };
 
@@ -373,10 +377,10 @@ function PosPage() {
           ) : (
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" size="lg" disabled={creating || !lines.length} onClick={() => submit(false)}>
-                {creating ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />} Send
+                {creating && submittingAction === "send" ? <Loader2 className="size-4 animate-spin" /> : <ChefHat className="size-4" />} Send
               </Button>
               <Button size="lg" disabled={creating || !lines.length || !can("payments.process")} onClick={() => submit(true)}>
-                <CreditCard className="size-4" /> Send & pay
+                {creating && submittingAction === "pay" ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />} Send & pay
               </Button>
             </div>
           )}

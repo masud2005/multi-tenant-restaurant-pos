@@ -1,13 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { format, isToday } from "date-fns";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { RequirePermission } from "@/features/tenant/require-permission";
 import { useTenant } from "@/features/tenant/tenant-context";
 import { useTablesQuery } from "@/app/api";
-import { useReservationsQuery, useSaveReservationMutation, useSetReservationStatusMutation } from "@/features/people/api";
+import {
+  useDeleteReservationMutation,
+  useReservationsQuery,
+  useSaveReservationMutation,
+  useSetReservationStatusMutation,
+} from "@/features/people/api";
 import { withToast } from "@/features/tenant/use-mutation-toast";
-import { DataTable, td } from "@/components/common/confirm";
+import { Confirm, DataTable, td } from "@/components/common/confirm";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/states";
 import { Field, num } from "@/components/common/field";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +45,7 @@ function Reservations() {
   const { tenant, branch } = useTenant();
   const list = useReservationsQuery({ tenantId: tenant.id, branchId: branch.id });
   const [setStatus] = useSetReservationStatusMutation();
+  const [deleteReservation] = useDeleteReservationMutation();
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<Reservation | "new" | null>(null);
   const rows = (list.data ?? []).filter((r) => showAll || r.status === "booked" || r.status === "seated");
@@ -70,6 +76,17 @@ function Reservations() {
                   </>
                 )}
                 {r.status === "seated" && <Button size="sm" variant="outline" onClick={() => act(r, "completed", "Reservation completed")}>Complete</Button>}
+                {r.status !== "seated" && (
+                  <Confirm
+                    title={`Delete reservation for ${r.customerName}?`}
+                    body="This will soft delete the reservation. If a table was held, it will be released."
+                    onConfirm={() => withToast(deleteReservation({ tenantId: tenant.id, id: r.id }), "Reservation deleted")}
+                  >
+                    <Button size="icon" variant="ghost" aria-label={`Delete reservation for ${r.customerName}`} className="text-destructive hover:bg-destructive/10">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </Confirm>
+                )}
               </td>
             </tr>
           ))}
@@ -86,6 +103,7 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
   const { tenant, branch } = useTenant();
   const tables = useTablesQuery({ tenantId: tenant.id, branchId: branch.id });
   const [save, { isLoading }] = useSaveReservationMutation();
+  const [deleteReservation, { isLoading: isDeleting }] = useDeleteReservationMutation();
   const [v, setV] = useState({
     customerName: res?.customerName ?? "",
     phone: res?.phone ?? "",
@@ -99,7 +117,7 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{res ? "Edit reservation" : "New reservation"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{res ? `Edit reservation — ${res.customerName}` : "New reservation"}</DialogTitle></DialogHeader>
         <form
           className="grid grid-cols-2 gap-3"
           onSubmit={async (e) => {
@@ -107,7 +125,7 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
             const input = {
               tenantId: tenant.id,
               id: res?.id,
-              branchId: branch.id,
+              branchId: res?.branchId || branch.id,
               customerName: v.customerName,
               phone: v.phone,
               partySize: num(v.partySize),
@@ -116,7 +134,7 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
               tableId: v.tableId === "none" ? null : v.tableId,
               notes: v.notes,
             };
-            if (await withToast(save(input), "Reservation saved")) onClose();
+            if (await withToast(save(input), res ? "Reservation updated" : "Reservation saved")) onClose();
           }}
         >
           <Field label="Guest name" className="col-span-2">{(id) => <Input id={id} value={v.customerName} maxLength={60} onChange={set("customerName")} required />}</Field>
@@ -136,9 +154,25 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
             )}
           </Field>
           <Field label="Notes" className="col-span-2">{(id) => <Textarea id={id} value={v.notes} maxLength={140} onChange={set("notes")} />}</Field>
-          <DialogFooter className="col-span-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="size-4 animate-spin" />} Save</Button>
+          <DialogFooter className="col-span-2 flex items-center justify-between sm:justify-between">
+            {res && res.status !== "seated" ? (
+              <Confirm
+                title={`Delete reservation for ${res.customerName}?`}
+                body="This will soft delete the reservation. If a table was held, it will be released."
+                onConfirm={async () => {
+                  const ok = await withToast(deleteReservation({ tenantId: tenant.id, id: res.id }), "Reservation deleted");
+                  if (ok) onClose();
+                }}
+              >
+                <Button type="button" variant="destructive" size="sm" disabled={isDeleting}>
+                  {isDeleting ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Trash2 className="mr-1.5 size-4" />} Delete
+                </Button>
+              </Confirm>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="size-4 animate-spin" />} {res ? "Update" : "Save"}</Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

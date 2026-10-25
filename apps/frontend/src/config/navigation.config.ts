@@ -23,6 +23,7 @@ import {
   Bell,
   History,
   Settings,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "./permissions.config";
@@ -46,7 +47,7 @@ export type AppPath =
   | "delivery"
   | "finance"
   | "team"
-  | "team/attendance"
+  | "team/roles"
   | "branches"
   | "promotions"
   | "notifications"
@@ -95,8 +96,8 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Team",
     items: [
-      { path: "team", label: "Staff & shifts", icon: UserCog, permission: "shifts.manage" },
-      { path: "team/attendance", label: "Clock in / out", icon: Clock, permission: "attendance.self" },
+      { path: "team", label: "Staff", icon: Users, permission: "shifts.manage" },
+      { path: "team/roles", label: "Roles & permissions", icon: ShieldCheck, permission: "roles.view" },
       { path: "branches", label: "Branches", icon: Store, permission: "branches.manage" },
     ],
   },

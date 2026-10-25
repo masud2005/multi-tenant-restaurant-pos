@@ -1,0 +1,43 @@
+model PurchaseOrder {
+  id           String @id @default(cuid())
+  poNumber     String
+  restaurantId String
+  branchId     String
+  supplierId   String
+  createdById  String
+
+  expectedAt DateTime?
+  status     PurchaseOrderStatus @default(DRAFT)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant    Tenant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch        Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier      Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  items         PurchaseOrderItem[]
+  goodsReceipts GoodsReceipt[]
+
+  // একই রেস্টুরেন্টে PO নম্বর ইউনিক
+  @@unique([restaurantId, poNumber])
+  @@index([restaurantId, branchId, status])
+  @@index([supplierId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  ingredientId    String
+  quantity        Float    @default(0.0)
+  unitCost        Float    @default(0.0)
+  receivedQty     Float    @default(0.0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_order_items")
+}

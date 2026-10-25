@@ -12,9 +12,11 @@ export class CategoryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createCategory(tenantSlug: string, dto: CreateCategoryDto) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -60,10 +62,12 @@ export class CategoryService {
     return category;
   }
 
-  async getAllCategories(tenantSlug: string, activeOnly?: boolean) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+  async getAllCategories(tenantSlug: string, activeOnly: boolean = true) {
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -81,9 +85,11 @@ export class CategoryService {
   }
 
   async getCategoryById(tenantSlug: string, categoryId: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -150,9 +156,10 @@ export class CategoryService {
     // 1. Verify category exists for this tenant
     await this.getCategoryById(tenantSlug, categoryId);
 
-    // 2. Delete category
-    await this.prisma.category.delete({
+    // 2. Soft delete category (set isActive to false to preserve historical records)
+    await this.prisma.category.update({
       where: { id: categoryId },
+      data: { isActive: false },
     });
 
     return { message: 'Category deleted successfully' };

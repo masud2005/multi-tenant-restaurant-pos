@@ -18,27 +18,50 @@ import {
 export class TableService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Create a new dining table for a restaurant branch
-   */
-  async createTable(tenantSlug: string, dto: CreateTableDto) {
-    // 1. Verify tenant exists by slug
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+  private async resolveTenant(tenantSlugOrId: string) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [
+          { slug: tenantSlugOrId },
+          { id: tenantSlugOrId },
+        ],
+      },
     });
 
     if (!tenant) {
       throw new NotFoundException('Restaurant');
     }
 
+    return tenant;
+  }
+
+  /**
+   * Create a new dining table for a restaurant branch
+   */
+  async createTable(tenantSlug: string, dto: CreateTableDto) {
+    // 1. Verify tenant exists by slug or id
+    const tenant = await this.resolveTenant(tenantSlug);
+
     // 2. Verify that branch exists and belongs to this tenant
-    const branch = await this.prisma.branch.findFirst({
-      where: {
-        id: dto.branchId,
-        tenantId: tenant.id,
-        isActive: true,
-      },
-    });
+    let branch = null;
+    if (dto.branchId) {
+      branch = await this.prisma.branch.findFirst({
+        where: {
+          id: dto.branchId,
+          tenantId: tenant.id,
+          isActive: true,
+        },
+      });
+    }
+
+    if (!branch) {
+      branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+        },
+      });
+    }
 
     if (!branch) {
       throw new NotFoundException('Branch');
@@ -86,14 +109,8 @@ export class TableService {
    * Get all dining tables for a restaurant with optional filters (branch, status, area, search)
    */
   async getTables(tenantSlug: string, query: GetTablesQueryDto) {
-    // 1. Verify tenant exists by slug
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Restaurant');
-    }
+    // 1. Verify tenant exists by slug or id
+    const tenant = await this.resolveTenant(tenantSlug);
 
     // 2. If branchId is specified, verify that the branch belongs to this tenant
     if (query.branchId) {
@@ -182,20 +199,17 @@ export class TableService {
    */
   async getTableById(tenantSlug: string, tableId: string) {
     // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Restaurant');
-    }
+    const tenant = await this.resolveTenant(tenantSlug);
 
     // 2. Fetch table
     const table = await this.prisma.diningTable.findFirst({
       where: {
-        id: tableId,
         tenantId: tenant.id,
         isDeleted: false,
+        OR: [
+          { id: tableId },
+          { name: tableId },
+        ],
       },
       include: {
         branch: {
@@ -244,20 +258,17 @@ export class TableService {
     dto: UpdateTableDto,
   ) {
     // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Restaurant');
-    }
+    const tenant = await this.resolveTenant(tenantSlug);
 
     // 2. Verify table exists for this tenant
     const table = await this.prisma.diningTable.findFirst({
       where: {
-        id: tableId,
         tenantId: tenant.id,
         isDeleted: false,
+        OR: [
+          { id: tableId },
+          { name: tableId },
+        ],
       },
     });
 
@@ -292,7 +303,7 @@ export class TableService {
             equals: trimmedName,
             mode: 'insensitive',
           },
-          id: { not: tableId },
+          id: { not: table.id },
           isDeleted: false,
         },
       });
@@ -304,7 +315,7 @@ export class TableService {
 
     // 5. Update the table record
     const updatedTable = await this.prisma.diningTable.update({
-      where: { id: tableId },
+      where: { id: table.id },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
         ...(dto.branchId !== undefined && { branchId: dto.branchId }),
@@ -326,20 +337,17 @@ export class TableService {
    */
   async softDeleteTable(tenantSlug: string, tableId: string) {
     // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Restaurant');
-    }
+    const tenant = await this.resolveTenant(tenantSlug);
 
     // 2. Verify table exists
     const table = await this.prisma.diningTable.findFirst({
       where: {
-        id: tableId,
         tenantId: tenant.id,
         isDeleted: false,
+        OR: [
+          { id: tableId },
+          { name: tableId },
+        ],
       },
     });
 
@@ -350,7 +358,7 @@ export class TableService {
     // 3. Safety check: Cannot delete table if occupied or has active orders
     const activeOrder = await this.prisma.order.findFirst({
       where: {
-        tableId,
+        tableId: table.id,
         status: {
           in: [
             OrderStatus.IN_KITCHEN,
@@ -369,7 +377,7 @@ export class TableService {
 
     // 4. Perform soft delete
     await this.prisma.diningTable.update({
-      where: { id: tableId },
+      where: { id: table.id },
       data: {
         isDeleted: true,
         deletedAt: new Date(),
@@ -391,20 +399,17 @@ export class TableService {
     status: TableStatus,
   ) {
     // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Restaurant');
-    }
+    const tenant = await this.resolveTenant(tenantSlug);
 
     // 2. Verify table exists for this tenant
     const table = await this.prisma.diningTable.findFirst({
       where: {
-        id: tableId,
         tenantId: tenant.id,
         isDeleted: false,
+        OR: [
+          { id: tableId },
+          { name: tableId },
+        ],
       },
     });
 
@@ -414,7 +419,7 @@ export class TableService {
 
     // 3. Update the table status
     const updatedTable = await this.prisma.diningTable.update({
-      where: { id: tableId },
+      where: { id: table.id },
       data: { status },
       include: {
         branch: {

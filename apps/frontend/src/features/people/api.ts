@@ -20,8 +20,9 @@ export const peopleApi = api3.injectEndpoints({
 
     // ---- Reservations ----
     reservations: b.query<Reservation[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => people.listReservations(tenantId, branchId)), providesTags: ["Reservation"] }),
-    saveReservation: b.mutation<Reservation, T<people.ReservationInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveReservation(tenantId, i)), invalidatesTags: ["Reservation"] }),
+    saveReservation: b.mutation<Reservation, T<people.ReservationInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveReservation(tenantId, i)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
     setReservationStatus: b.mutation<Reservation, T<{ id: string; status: ReservationStatus }>>({ queryFn: ({ tenantId, id, status }) => run(() => people.setReservationStatus(tenantId, id, status)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
+    deleteReservation: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteReservation(tenantId, id)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
 
     // ---- Delivery ----
     deliveries: b.query<Order[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => money.listDeliveries(tenantId, branchId)), providesTags: ["Delivery", { type: "Order", id: "LIST" }] }),
@@ -49,6 +50,8 @@ export const peopleApi = api3.injectEndpoints({
     // ---- Staff, shifts, attendance ----
     staff: b.query<StaffMember[], string>({ queryFn: (t) => run(() => people.listStaff(t)), providesTags: ["Staff"] }),
     saveStaff: b.mutation<StaffMember, T<people.StaffInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveStaff(tenantId, i)), invalidatesTags: ["Staff", "Shift"] }),
+    deleteStaff: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteStaff(tenantId, id)), invalidatesTags: ["Staff", "Shift"] }),
+    reinviteStaff: b.mutation<{ success: boolean; message: string; inviteToken?: string; inviteUrl?: string; emailSent?: boolean }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.reinviteStaff(tenantId, id)), invalidatesTags: ["Staff"] }),
     shifts: b.query<Shift[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => people.listShifts(tenantId, branchId)), providesTags: ["Shift"] }),
     saveShift: b.mutation<Shift, T<people.ShiftInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveShift(tenantId, i)), invalidatesTags: ["Shift"] }),
     deleteShift: b.mutation<{ ok: true }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteShift(tenantId, id)), invalidatesTags: ["Shift"] }),
@@ -60,6 +63,7 @@ export const peopleApi = api3.injectEndpoints({
     saveBranch: b.mutation<Branch, T<people.BranchInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveBranch(tenantId, i)), invalidatesTags: ["Branch", "Inventory"] }),
     promotions: b.query<Promotion[], string>({ queryFn: (t) => run(() => people.listPromotions(t)), providesTags: ["Promotion"] }),
     savePromotion: b.mutation<Promotion, T<people.PromotionInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.savePromotion(tenantId, i)), invalidatesTags: ["Promotion"] }),
+    deletePromotion: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deletePromotion(tenantId, id)), invalidatesTags: ["Promotion"] }),
     validatePromotion: b.mutation<Promotion, T<{ code: string; subtotal: number }>>({ queryFn: ({ tenantId, code, subtotal }) => run(() => people.validatePromotion(tenantId, code, subtotal)) }),
   }),
 });
@@ -72,6 +76,7 @@ export const {
   useReservationsQuery,
   useSaveReservationMutation,
   useSetReservationStatusMutation,
+  useDeleteReservationMutation,
   useDeliveriesQuery,
   useRidersQuery,
   useSaveRiderMutation,
@@ -87,6 +92,8 @@ export const {
   useDeleteExpenseMutation,
   useStaffQuery,
   useSaveStaffMutation,
+  useDeleteStaffMutation,
+  useReinviteStaffMutation,
   useShiftsQuery,
   useSaveShiftMutation,
   useDeleteShiftMutation,
@@ -96,5 +103,6 @@ export const {
   useSaveBranchMutation,
   usePromotionsQuery,
   useSavePromotionMutation,
+  useDeletePromotionMutation,
   useValidatePromotionMutation,
 } = peopleApi;

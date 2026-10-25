@@ -17,7 +17,7 @@ model Ingredient {
   branchStocks        BranchStock[]
   recipeLines         RecipeLine[]
   stockMovements      StockMovement[]
-  purchaseOrderLines  PurchaseOrderLine[]
+  purchaseOrderItems  PurchaseOrderItem[]
   goodsReceiptLines   GoodsReceiptLine[]
   supplierReturnLines SupplierReturnLine[]
   stockCountLines     StockCountLine[]
@@ -121,71 +121,6 @@ model StockCountLine {
   ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 
   @@map("stock_count_lines")
-}
-
-model Supplier {
-  id           String    @id @default(uuid())
-  tenantId     String
-  name         String
-  contact      String?   @default("")
-  phone        String    @default("")
-  email        String?   @default("")
-  supplies     String?   @default("")
-  paymentTerms String?   @default("")
-  active       Boolean   @default(true)
-  isDeleted    Boolean   @default(false)
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  purchaseOrders  PurchaseOrder[]
-  goodsReceipts   GoodsReceipt[]
-  supplierReturns SupplierReturn[]
-
-  @@unique([tenantId, name])
-  @@map("suppliers")
-}
-
-model PurchaseOrder {
-  id           String              @id @default(uuid())
-  tenantId     String
-  branchId     String
-  supplierId   String
-  number       String
-  status       PurchaseOrderStatus @default(DRAFT)
-  expectedDate DateTime?
-  total        Float               @default(0.0)
-  notes        String?             @default("")
-  createdBy    String?             @default("")
-  sentAt       DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-
-  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch        Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  supplier      Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  lines         PurchaseOrderLine[]
-  goodsReceipts GoodsReceipt[]
-
-  @@unique([branchId, number])
-  @@map("purchase_orders")
-}
-
-model PurchaseOrderLine {
-  id              String   @id @default(uuid())
-  purchaseOrderId String
-  ingredientId    String
-  qty             Float    @default(0.0)
-  unitCost        Float    @default(0.0)
-  receivedQty     Float    @default(0.0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  ingredient    Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-
-  @@map("purchase_order_lines")
 }
 
 model GoodsReceipt {

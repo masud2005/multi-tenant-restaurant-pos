@@ -47,6 +47,7 @@ export const TENANTS: Tenant[] = [
 export const BRANCHES: Branch[] = [
   { id: "b_se_gulshan", tenantId: "t_saffron", name: "Gulshan", address: "Road 11, Gulshan-2, Dhaka", phone: "+880 1711-000111" },
   { id: "b_se_dhanmondi", tenantId: "t_saffron", name: "Dhanmondi", address: "Road 27, Dhanmondi, Dhaka", phone: "+880 1711-000222" },
+  { id: "4f284a78-ca30-485a-8386-b0be7ba64196", tenantId: "t_saffron", name: "Mohakhali", address: "Bir Uttam AK Khandakar Rd, Mohakhali, Dhaka", phone: "+880 1711-000333" },
   { id: "b_hn_pier", tenantId: "t_harbor", name: "Pier 39", address: "Pier 39, San Francisco, CA", phone: "+1 415-555-0139" },
   { id: "b_hn_mission", tenantId: "t_harbor", name: "Mission", address: "Valencia St, San Francisco, CA", phone: "+1 415-555-0172" },
   { id: "b_cl_mitte", tenantId: "t_lumen", name: "Mitte", address: "Torstraße 88, Berlin", phone: "+49 30 555 0101" },

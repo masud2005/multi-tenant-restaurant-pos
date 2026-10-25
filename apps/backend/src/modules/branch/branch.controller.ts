@@ -59,8 +59,7 @@ export class BranchController {
   }
 
   @Get(':tenantSlug/branches')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(Permission.BRANCHES_MANAGE)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get all branches of the restaurant',

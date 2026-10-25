@@ -6,7 +6,7 @@ import { RequirePermission } from "@/features/tenant/require-permission";
 import { useTenant } from "@/features/tenant/tenant-context";
 import { useMoney } from "@/features/tenant/use-money";
 import { useIngredientsQuery } from "@/app/api";
-import { usePurchaseOrdersQuery, useSavePurchaseOrderMutation, useSetPurchaseOrderStatusMutation, useSuppliersQuery } from "@/features/backoffice/api";
+import { useDeletePurchaseOrderMutation, usePurchaseOrdersQuery, useSavePurchaseOrderMutation, useSetPurchaseOrderStatusMutation, useSuppliersQuery } from "@/features/backoffice/api";
 import { withToast } from "@/features/tenant/use-mutation-toast";
 import { PO_STATUS } from "@/features/backoffice/labels";
 import { Confirm, DataTable, td } from "@/components/common/confirm";
@@ -36,6 +36,7 @@ function PurchaseOrders() {
   const money = useMoney();
   const pos = usePurchaseOrdersQuery({ tenantId: tenant.id, branchId: branch.id });
   const [setStatus] = useSetPurchaseOrderStatusMutation();
+  const [del] = useDeletePurchaseOrderMutation();
   const [filter, setFilter] = useState<PurchaseOrderStatus | "all">("all");
   const [editing, setEditing] = useState<PurchaseOrder | "new" | null>(null);
   const rows = (pos.data ?? []).filter((p) => filter === "all" || p.status === filter);
@@ -74,7 +75,12 @@ function PurchaseOrders() {
                   <Button size="sm" variant="outline" asChild><Link to="/app/$tenantSlug/purchasing/receiving" params={{ tenantSlug: tenant.slug }}>Receive</Link></Button>
                 )}
                 {(p.status === "draft" || p.status === "sent") && (
-                  <Confirm title={`Cancel ${p.number}?`} body="The supplier order will be marked cancelled." confirmLabel="Cancel order" onConfirm={() => withToast(setStatus({ tenantId: tenant.id, id: p.id, status: "cancelled" }), `${p.number} cancelled`)}>
+                  <Confirm
+                    title={`Cancel ${p.number}?`}
+                    body="The supplier order will be marked cancelled."
+                    confirmLabel="Cancel order"
+                    onConfirm={() => withToast(del({ tenantId: tenant.id, id: p.id }), `${p.number} cancelled`)}
+                  >
                     <Button size="icon" variant="ghost" aria-label={`Cancel ${p.number}`}><Ban className="size-4" /></Button>
                   </Confirm>
                 )}

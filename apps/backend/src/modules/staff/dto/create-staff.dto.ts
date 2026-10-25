@@ -75,4 +75,22 @@ export class CreateStaffDto {
   @IsBoolean({ message: 'Active must be a boolean' })
   @IsOptional()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Staff status (DRAFT, INVITED, ACTIVE, INACTIVE)',
+    example: 'INVITED',
+    default: 'INVITED',
+  })
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether to send an invitation email immediately',
+    example: true,
+    default: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  sendInvite?: boolean;
 }

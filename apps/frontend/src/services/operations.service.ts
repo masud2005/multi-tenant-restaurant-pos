@@ -2,9 +2,11 @@ import { ApiError, commit, latency, tenantDb, uid } from "@/mocks/db";
 import { TENANTS } from "@/mocks/platform";
 import { computeTotals, round2 } from "@/lib/pricing";
 import { awardLoyalty, checkPromotion } from "./people.service";
+import { backendFetch } from "./api-client";
 import type {
   Category,
   Combo,
+  DeliveryInfo,
   DiningTable,
   Discount,
   Ingredient,
@@ -14,8 +16,11 @@ import type {
   Notification,
   Order,
   OrderLine,
+  OrderStatus,
   OrderType,
+  Payment,
   PaymentMethod,
+  Refund,
   StockMovement,
   TableStatus,
 } from "@/types/domain";
@@ -44,6 +49,101 @@ export interface MenuBundle {
 }
 
 export async function getMenu(tenantId: string): Promise<MenuBundle> {
+  try {
+    const backendCategories = await backendFetch<Category[]>(`/tenants/${tenantId}/categories?activeOnly=true`);
+    if (Array.isArray(backendCategories)) {
+      const db = tenantDb(tenantId);
+      db.categories = backendCategories.map((c, idx) => ({
+        id: c.id,
+        tenantId: c.tenantId || tenantId,
+        name: c.name,
+        sort: c.sort ?? idx,
+      }));
+      commit(tenantId);
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch categories from backend, using local store:", err);
+    }
+  }
+
+  try {
+    const backendGroups = await backendFetch<any[]>(`/tenants/${tenantId}/modifier-groups`);
+    if (Array.isArray(backendGroups)) {
+      const db = tenantDb(tenantId);
+      db.modifierGroups = backendGroups.map((g) => ({
+        id: g.id,
+        tenantId: g.tenantId || tenantId,
+        name: g.name,
+        min: g.min ?? 0,
+        max: g.max ?? 1,
+        options: (g.options || []).map((o: any) => ({
+          id: o.id,
+          name: o.name,
+          price: Number(o.price) || 0,
+        })),
+      }));
+      commit(tenantId);
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch modifier groups from backend, using local store:", err);
+    }
+  }
+
+  try {
+    const backendCombos = await backendFetch<any[]>(`/tenants/${tenantId}/combos`);
+    if (Array.isArray(backendCombos)) {
+      const db = tenantDb(tenantId);
+      db.combos = backendCombos.map((c) => ({
+        id: c.id,
+        tenantId: c.tenantId || tenantId,
+        name: c.name,
+        description: c.description ?? "",
+        price: Number(c.price) || 0,
+        available: c.available ?? true,
+        components: (c.components || c.items || []).map((x: any) => ({
+          itemId: x.itemId || x.menuItemId,
+          qty: x.qty ?? x.quantity ?? 1,
+        })),
+      }));
+      commit(tenantId);
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch combos from backend, using local store:", err);
+    }
+  }
+
+  try {
+    const backendItems = await backendFetch<any[]>(`/tenants/${tenantId}/menu-items`);
+    if (Array.isArray(backendItems)) {
+      const db = tenantDb(tenantId);
+      db.menuItems = backendItems.map((item) => ({
+        id: item.id,
+        tenantId: item.tenantId || tenantId,
+        categoryId: item.categoryId,
+        name: item.name,
+        description: item.description ?? "",
+        price: Number(item.effectivePrice ?? item.price) || 0,
+        available: item.effectiveAvailable ?? item.available ?? true,
+        tags: item.tags ?? [],
+        modifierGroupIds: item.modifierGroupIds ?? [],
+        variants: (item.variants || []).map((v: any) => ({
+          id: v.id,
+          name: v.name,
+          priceDelta: Number(v.priceDelta) || 0,
+        })),
+        recipe: [],
+      }));
+      commit(tenantId);
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch menu items from backend, using local store:", err);
+    }
+  }
+
   await latency();
   const db = tenantDb(tenantId);
   return { categories: [...db.categories].sort((a, b) => a.sort - b.sort), items: db.menuItems, modifierGroups: db.modifierGroups, combos: db.combos };
@@ -58,7 +158,135 @@ export interface OrderFilters {
 
 const ACTIVE: Order["status"][] = ["in_kitchen", "ready", "served"];
 
+export function mapBackendOrderToDomain(raw: any): Order {
+  const statusMap: Record<string, OrderStatus> = {
+    IN_KITCHEN: "in_kitchen",
+    READY: "ready",
+    SERVED: "served",
+    COMPLETED: "completed",
+    CANCELLED: "cancelled",
+  };
+  const kitchenStatusMap: Record<string, KitchenStatus> = {
+    NEW: "new",
+    PREPARING: "preparing",
+    READY: "ready",
+    BUMPED: "bumped",
+  };
+  const typeMap: Record<string, OrderType> = {
+    DINE_IN: "dine_in",
+    TAKEAWAY: "takeaway",
+    PICKUP: "pickup",
+    COUNTER: "counter",
+    DELIVERY: "delivery",
+  };
+
+  const discountKind = raw.discountKind
+    ? ((raw.discountKind.toLowerCase() === "percent" ? "percent" : "amount") as "percent" | "amount")
+    : null;
+
+  return {
+    id: raw.id,
+    tenantId: raw.tenantId,
+    branchId: raw.branchId,
+    number: raw.orderNumber || raw.number || `#${raw.id.slice(0, 4)}`,
+    type: typeMap[raw.type] || (raw.type?.toLowerCase() as OrderType) || "dine_in",
+    tableId: raw.tableId || null,
+    tableName: raw.tableName || raw.table?.name || null,
+    customerName: raw.customerName || "",
+    customerPhone: raw.customerPhone || "",
+    lines: (raw.lines || []).map((l: any) => ({
+      id: l.id,
+      itemId: l.menuItemId || l.itemId || "",
+      name: l.name,
+      variantId: l.variantId || null,
+      variantName: l.variantName || null,
+      modifiers: (l.modifiers || []).map((m: any) => ({
+        groupId: m.groupId || "",
+        optionId: m.optionId || "",
+        name: m.name,
+        price: Number(m.price) || 0,
+      })),
+      qty: Number(l.qty) || 1,
+      unitPrice: Number(l.unitPrice) || 0,
+      notes: l.notes || "",
+    })),
+    discount: discountKind
+      ? {
+          kind: discountKind,
+          value: Number(raw.discount) || 0,
+          reason: raw.discountReason || "",
+          promoCode: raw.promoCode || undefined,
+        }
+      : null,
+    notes: raw.notes || "",
+    totals: {
+      subtotal: Number(raw.subtotal) || 0,
+      discount: Number(raw.discount) || 0,
+      serviceCharge: Number(raw.serviceCharge) || 0,
+      tax: Number(raw.tax) || 0,
+      total: Number(raw.total) || 0,
+    },
+    status: statusMap[raw.status] || (raw.status?.toLowerCase() as OrderStatus) || "in_kitchen",
+    kitchenStatus: kitchenStatusMap[raw.kitchenStatus] || (raw.kitchenStatus?.toLowerCase() as KitchenStatus) || "new",
+    payments: (raw.payments || []).map((p: any) => ({
+      id: p.id,
+      method: (p.method?.toLowerCase() as PaymentMethod) || "cash",
+      amount: Number(p.amount) || 0,
+      tendered: Number(p.tendered) || Number(p.amount) || 0,
+      change: Number(p.change) || 0,
+      reference: p.reference || "",
+      at: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+    })),
+    paid: Number(raw.paid) || 0,
+    refunds: (raw.refunds || []).map((r: any) => ({
+      id: r.id,
+      amount: Number(r.amount) || 0,
+      reason: r.reason || "",
+      at: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      by: r.createdBy || "",
+    })),
+    refunded: Number(raw.refunded) || 0,
+    delivery: raw.deliveryAddress
+      ? {
+          address: raw.deliveryAddress,
+          riderId: raw.riderId || null,
+          riderName: raw.riderName || null,
+          status: (raw.deliveryStatus?.toLowerCase() as any) || "pending",
+          dispatchedAt: raw.dispatchedAt ? new Date(raw.dispatchedAt).toISOString() : null,
+          deliveredAt: raw.deliveredAt ? new Date(raw.deliveredAt).toISOString() : null,
+        }
+      : null,
+    inventoryDeducted: Boolean(raw.inventoryDeducted),
+    createdBy: raw.createdBy || "",
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString() : new Date().toISOString(),
+    sentToKitchenAt: raw.sentToKitchenAt ? new Date(raw.sentToKitchenAt).toISOString() : new Date().toISOString(),
+    readyAt: raw.readyAt ? new Date(raw.readyAt).toISOString() : null,
+    completedAt: raw.completedAt ? new Date(raw.completedAt).toISOString() : null,
+  };
+}
+
 export async function listOrders(tenantId: string, f: OrderFilters): Promise<Order[]> {
+  try {
+    const params = new URLSearchParams();
+    if (f.branchId) params.append("branchId", f.branchId);
+    if (f.status) params.append("status", f.status);
+    if (f.search) params.append("search", f.search);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : "";
+    const backendOrders = await backendFetch<any[]>(`/tenants/${tenantId}/orders${queryStr}`);
+    if (Array.isArray(backendOrders)) {
+      const mapped = backendOrders.map(mapBackendOrderToDomain);
+      const db = tenantDb(tenantId);
+      db.orders = mapped;
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch orders from backend, using local store:", err);
+    }
+  }
+
   await latency();
   const q = f.search?.trim().toLowerCase();
   return tenantDb(tenantId)
@@ -71,6 +299,23 @@ export async function listOrders(tenantId: string, f: OrderFilters): Promise<Ord
 }
 
 export async function getOrder(tenantId: string, orderId: string): Promise<Order> {
+  try {
+    const backendOrder = await backendFetch<any>(`/tenants/${tenantId}/orders/${encodeURIComponent(orderId)}`);
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch order from backend, using local store:", err);
+    }
+  }
+
   await latency(80, 200);
   return findOrder(tenantId, orderId);
 }
@@ -89,6 +334,74 @@ export interface CreateOrderInput {
 }
 
 export async function createOrder(tenantId: string, input: CreateOrderInput): Promise<Order> {
+  try {
+    const payload = {
+      branchId: input.branchId,
+      type: input.type,
+      tableId: input.tableId || undefined,
+      customerName: input.customerName?.trim() || undefined,
+      customerPhone: input.customerPhone?.trim() || undefined,
+      deliveryAddress: input.type === "delivery" ? (input.deliveryAddress ?? "").trim() : undefined,
+      notes: input.notes?.trim() || undefined,
+      createdBy: input.createdBy || undefined,
+      discount: input.discount
+        ? {
+            kind: input.discount.kind,
+            value: input.discount.value,
+            reason: input.discount.reason,
+            promoCode: input.discount.promoCode,
+          }
+        : undefined,
+      lines: input.lines.map((l) => ({
+        menuItemId: l.itemId,
+        itemId: l.itemId,
+        name: l.name,
+        variantId: l.variantId || undefined,
+        variantName: l.variantName || undefined,
+        qty: l.qty,
+        unitPrice: l.unitPrice,
+        notes: l.notes || undefined,
+        modifiers: (l.modifiers || []).map((m) => ({
+          groupId: m.groupId || undefined,
+          optionId: m.optionId || undefined,
+          name: m.name,
+          price: m.price,
+        })),
+      })),
+    };
+
+    const backendOrder = await backendFetch<any>(`/tenants/${tenantId}/orders`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const existingIdx = db.orders.findIndex((o) => o.id === mapped.id);
+      if (existingIdx >= 0) {
+        db.orders[existingIdx] = mapped;
+      } else {
+        db.orders.unshift(mapped);
+      }
+      if (mapped.tableId) {
+        const t = db.tables.find((x) => x.id === mapped.tableId || x.name === mapped.tableName);
+        if (t) {
+          t.status = "occupied";
+          t.currentOrderId = mapped.id;
+        }
+      }
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable, falling back to local database for order creation");
+    } else {
+      throw err;
+    }
+  }
+
   await latency(250, 500);
   const tenant = tenantOf(tenantId);
   const db = tenantDb(tenantId);
@@ -149,6 +462,44 @@ export async function createOrder(tenantId: string, input: CreateOrderInput): Pr
 }
 
 export async function addOrderLines(tenantId: string, orderId: string, lines: OrderLine[]): Promise<Order> {
+  try {
+    const payload = lines.map((l) => ({
+      menuItemId: l.itemId,
+      itemId: l.itemId,
+      name: l.name,
+      variantId: l.variantId || undefined,
+      variantName: l.variantName || undefined,
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      notes: l.notes || undefined,
+      modifiers: (l.modifiers || []).map((m) => ({
+        groupId: m.groupId || undefined,
+        optionId: m.optionId || undefined,
+        name: m.name,
+        price: m.price,
+      })),
+    }));
+
+    const backendOrder = await backendFetch<any>(`/tenants/${tenantId}/orders/${orderId}/lines`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Backend addOrderLines failed, using local store:", err);
+    }
+  }
+
   await latency(200, 400);
   const tenant = tenantOf(tenantId);
   const db = tenantDb(tenantId);
@@ -232,11 +583,42 @@ function deductInventory(tenantId: string, order: Order) {
 
 const KITCHEN_FLOW: Record<KitchenStatus, KitchenStatus | null> = { new: "preparing", preparing: "ready", ready: "bumped", bumped: null };
 
-export async function advanceKitchen(tenantId: string, orderId: string): Promise<Order> {
+export async function advanceKitchen(
+  tenantId: string,
+  orderId: string,
+  targetStatus?: KitchenStatus,
+): Promise<Order> {
+  try {
+    const url = targetStatus
+      ? `/tenants/${tenantId}/orders/${encodeURIComponent(orderId)}/kitchen/status`
+      : `/tenants/${tenantId}/orders/${encodeURIComponent(orderId)}/kitchen/advance`;
+
+    const backendOrder = await backendFetch<any>(url, {
+      method: "PATCH",
+      ...(targetStatus && {
+        body: JSON.stringify({ kitchenStatus: targetStatus.toUpperCase() }),
+      }),
+    });
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id || x.number === mapped.number);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503) {
+      throw err;
+    }
+    console.warn("Backend advanceKitchen failed, using local store:", err);
+  }
+
   await latency(100, 250);
   const order = findOrder(tenantId, orderId);
   if (order.status === "cancelled") throw new ApiError(409, "Order was cancelled.");
-  const next = KITCHEN_FLOW[order.kitchenStatus];
+  const next = targetStatus || KITCHEN_FLOW[order.kitchenStatus];
   if (!next) throw new ApiError(409, "Ticket already bumped.");
   order.kitchenStatus = next;
   if (next === "ready") {
@@ -248,6 +630,26 @@ export async function advanceKitchen(tenantId: string, orderId: string): Promise
 }
 
 export async function markServed(tenantId: string, orderId: string): Promise<Order> {
+  try {
+    const backendOrder = await backendFetch<any>(`/tenants/${tenantId}/orders/${encodeURIComponent(orderId)}/serve`, {
+      method: "PATCH",
+    });
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id || x.number === mapped.number);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503) {
+      throw err;
+    }
+    console.warn("Backend markServed failed, using local store:", err);
+  }
+
   await latency(100, 250);
   const order = findOrder(tenantId, orderId);
   if (order.status !== "ready") throw new ApiError(409, "Only ready orders can be served.");
@@ -266,6 +668,34 @@ export interface PaymentInput {
 }
 
 export async function addPayment(tenantId: string, orderId: string, input: PaymentInput): Promise<Order> {
+  try {
+    const payload = {
+      method: input.method.toUpperCase(),
+      amount: input.amount,
+      tendered: input.tendered,
+      change: input.method === "cash" ? Math.max(0, input.tendered - input.amount) : 0,
+      reference: input.reference || undefined,
+    };
+    const res = await backendFetch<any>(`/tenants/${tenantId}/orders/${orderId}/payments`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const backendOrder = res?.order || res;
+    if (backendOrder && backendOrder.id) {
+      const mapped = mapBackendOrderToDomain(backendOrder);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Backend addPayment failed, using local store:", err);
+    }
+  }
+
   await latency(400, 800);
   const order = findOrder(tenantId, orderId);
   if (order.status === "cancelled") throw new ApiError(409, "Cannot pay a cancelled order.");
@@ -314,11 +744,140 @@ export async function cancelOrder(tenantId: string, orderId: string, reason: str
 
 // ---------- Tables ----------
 export async function listTables(tenantId: string, branchId: string): Promise<DiningTable[]> {
+  try {
+    const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+    const backendTables = await backendFetch<any[]>(`/tenants/${tenantId}/tables${qs}`);
+    if (Array.isArray(backendTables)) {
+      const statusMap: Record<string, TableStatus> = {
+        AVAILABLE: "available",
+        OCCUPIED: "occupied",
+        RESERVED: "reserved",
+        CLEANING: "cleaning",
+      };
+      const db = tenantDb(tenantId);
+      const mapped: DiningTable[] = backendTables.map((t) => {
+        const shape: "round" | "square" | "long" =
+          t.shape === "round" || t.shape === "long" || t.shape === "square"
+            ? t.shape
+            : t.shape === "rectangle" || t.shape === "booth"
+            ? "long"
+            : "square";
+
+        return {
+          id: t.id,
+          tenantId: t.tenantId || tenantId,
+          branchId: t.branchId || branchId,
+          name: t.name,
+          seats: t.seats ?? 4,
+          area: t.area || "Main hall",
+          status: statusMap[t.status] || (t.status?.toLowerCase() as TableStatus) || "available",
+          currentOrderId: t.currentOrderId || t.orders?.[0]?.id || null,
+          x: t.x ?? 0,
+          y: t.y ?? 0,
+          shape,
+        };
+      });
+
+      mapped.forEach((tbl) => {
+        const idx = db.tables.findIndex((x) => x.id === tbl.id || (x.branchId === tbl.branchId && x.name === tbl.name));
+        if (idx >= 0) db.tables[idx] = tbl;
+        else db.tables.push(tbl);
+      });
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch tables from backend, using local store:", err);
+    }
+  }
+
   await latency(80, 200);
-  return tenantDb(tenantId).tables.filter((t) => t.branchId === branchId);
+  return tenantDb(tenantId).tables.filter((t) => !branchId || t.branchId === branchId);
+}
+
+export async function getTable(tenantId: string, tableId: string): Promise<DiningTable> {
+  const statusMap: Record<string, TableStatus> = {
+    AVAILABLE: "available",
+    OCCUPIED: "occupied",
+    RESERVED: "reserved",
+    CLEANING: "cleaning",
+  };
+
+  try {
+    const t = await backendFetch<any>(`/tenants/${tenantId}/tables/${encodeURIComponent(tableId)}`);
+    if (t && t.id) {
+      const shape: "round" | "square" | "long" =
+        t.shape === "round" || t.shape === "long" || t.shape === "square"
+          ? t.shape
+          : t.shape === "rectangle" || t.shape === "booth"
+          ? "long"
+          : "square";
+
+      const mapped: DiningTable = {
+        id: t.id,
+        tenantId: t.tenantId || tenantId,
+        branchId: t.branchId,
+        name: t.name,
+        seats: t.seats ?? 4,
+        area: t.area || "Main hall",
+        status: statusMap[t.status] || (t.status?.toLowerCase() as TableStatus) || "available",
+        currentOrderId: t.currentOrderId || t.orders?.[0]?.id || null,
+        x: t.x ?? 0,
+        y: t.y ?? 0,
+        shape,
+      };
+
+      const db = tenantDb(tenantId);
+      const idx = db.tables.findIndex((x) => x.id === mapped.id || (x.branchId === mapped.branchId && x.name === mapped.name));
+      if (idx >= 0) db.tables[idx] = mapped;
+      else db.tables.push(mapped);
+      commit(tenantId);
+
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch table from backend, using local store:", err);
+    }
+  }
+
+  await latency(60, 150);
+  const found = tenantDb(tenantId).tables.find((x) => x.id === tableId || x.name === tableId);
+  if (!found) throw new ApiError(404, "Table not found");
+  return found;
 }
 
 export async function setTableStatus(tenantId: string, tableId: string, status: TableStatus): Promise<DiningTable> {
+  const statusMap: Record<string, TableStatus> = {
+    AVAILABLE: "available",
+    OCCUPIED: "occupied",
+    RESERVED: "reserved",
+    CLEANING: "cleaning",
+  };
+
+  try {
+    const res = await backendFetch<any>(`/tenants/${tenantId}/tables/${encodeURIComponent(tableId)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: status.toUpperCase() }),
+    });
+
+    if (res && res.id) {
+      const db = tenantDb(tenantId);
+      const target = db.tables.find((x) => x.id === tableId || x.id === res.id);
+      if (target) {
+        target.status = statusMap[res.status] || status;
+        commit(tenantId);
+        return target;
+      }
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503 && err.status !== 404) {
+      throw err;
+    }
+    console.warn("Could not update table status via backend, updating local store:", err);
+  }
+
   await latency(80, 200);
   const t = tenantDb(tenantId).tables.find((x) => x.id === tableId);
   if (!t) throw new ApiError(404, "Table not found.");
@@ -338,9 +897,67 @@ export interface CreateTableInput {
 }
 
 export async function createTable(tenantId: string, input: CreateTableInput): Promise<DiningTable> {
+  const trimmedName = input.name.trim();
+
+  try {
+    const payload = {
+      branchId: input.branchId,
+      name: trimmedName,
+      seats: input.seats || 4,
+      area: input.area?.trim() || "Main hall",
+      shape: input.shape || "square",
+      status: "AVAILABLE",
+    };
+
+    const res = await backendFetch<any>(`/tenants/${tenantId}/tables`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    if (res && res.id) {
+      const statusMap: Record<string, TableStatus> = {
+        AVAILABLE: "available",
+        OCCUPIED: "occupied",
+        RESERVED: "reserved",
+        CLEANING: "cleaning",
+      };
+
+      const mapped: DiningTable = {
+        id: res.id,
+        tenantId: res.tenantId || tenantId,
+        branchId: res.branchId || input.branchId,
+        name: res.name || trimmedName,
+        seats: res.seats ?? (input.seats || 4),
+        area: res.area || input.area || "Main hall",
+        status: statusMap[res.status] || (res.status?.toLowerCase() as TableStatus) || "available",
+        currentOrderId: res.currentOrderId || null,
+        x: res.x ?? 0,
+        y: res.y ?? 0,
+        shape: (res.shape?.toLowerCase() as any) || input.shape || "square",
+      };
+
+      const db = tenantDb(tenantId);
+      const existingIdx = db.tables.findIndex(
+        (t) => t.id === mapped.id || (t.branchId === mapped.branchId && t.name.toLowerCase() === mapped.name.toLowerCase()),
+      );
+      if (existingIdx >= 0) {
+        db.tables[existingIdx] = mapped;
+      } else {
+        db.tables.push(mapped);
+      }
+      commit(tenantId);
+
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503) {
+      throw err;
+    }
+    console.warn("Could not create table via backend, falling back to local store:", err);
+  }
+
   await latency(120, 250);
   const db = tenantDb(tenantId);
-  const trimmedName = input.name.trim();
   const exists = db.tables.find(
     (t) => t.branchId === input.branchId && t.name.toLowerCase() === trimmedName.toLowerCase(),
   );
@@ -365,8 +982,159 @@ export async function createTable(tenantId: string, input: CreateTableInput): Pr
   return table;
 }
 
+export interface UpdateTableInput {
+  name?: string;
+  seats?: number;
+  area?: string;
+  shape?: "square" | "round" | "long";
+  status?: TableStatus;
+  isActive?: boolean;
+}
+
+export async function updateTable(
+  tenantId: string,
+  tableId: string,
+  input: UpdateTableInput,
+): Promise<DiningTable> {
+  const statusMap: Record<string, TableStatus> = {
+    AVAILABLE: "available",
+    OCCUPIED: "occupied",
+    RESERVED: "reserved",
+    CLEANING: "cleaning",
+  };
+
+  try {
+    const payload: any = {};
+    if (input.name !== undefined) payload.name = input.name.trim();
+    if (input.seats !== undefined) payload.seats = Number(input.seats);
+    if (input.area !== undefined) payload.area = input.area.trim();
+    if (input.shape !== undefined) payload.shape = input.shape;
+    if (input.status !== undefined) payload.status = input.status.toUpperCase();
+    if (input.isActive !== undefined) payload.isActive = input.isActive;
+
+    const res = await backendFetch<any>(`/tenants/${tenantId}/tables/${encodeURIComponent(tableId)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+
+    if (res && res.id) {
+      const shape: "round" | "square" | "long" =
+        res.shape === "round" || res.shape === "long" || res.shape === "square"
+          ? res.shape
+          : res.shape === "rectangle" || res.shape === "booth"
+          ? "long"
+          : "square";
+
+      const mapped: DiningTable = {
+        id: res.id,
+        tenantId: res.tenantId || tenantId,
+        branchId: res.branchId,
+        name: res.name,
+        seats: res.seats ?? (input.seats || 4),
+        area: res.area || input.area || "Main hall",
+        status: statusMap[res.status] || (res.status?.toLowerCase() as TableStatus) || "available",
+        currentOrderId: res.currentOrderId || null,
+        x: res.x ?? 0,
+        y: res.y ?? 0,
+        shape,
+      };
+
+      const db = tenantDb(tenantId);
+      const idx = db.tables.findIndex((x) => x.id === tableId || x.id === res.id);
+      if (idx >= 0) db.tables[idx] = mapped;
+      else db.tables.push(mapped);
+      commit(tenantId);
+
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503) {
+      throw err;
+    }
+    console.warn("Could not update table via backend, updating local store:", err);
+  }
+
+  await latency(80, 200);
+  const db = tenantDb(tenantId);
+  const t = db.tables.find((x) => x.id === tableId);
+  if (!t) throw new ApiError(404, "Table not found.");
+  if (input.name) t.name = input.name.trim();
+  if (input.seats) t.seats = input.seats;
+  if (input.area) t.area = input.area.trim();
+  if (input.shape) t.shape = input.shape;
+  if (input.status) t.status = input.status;
+  commit(tenantId);
+  return t;
+}
+
+export async function deleteTable(tenantId: string, tableId: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const res = await backendFetch<any>(`/tenants/${tenantId}/tables/${encodeURIComponent(tableId)}`, {
+      method: "DELETE",
+    });
+
+    const db = tenantDb(tenantId);
+    const idx = db.tables.findIndex((x) => x.id === tableId);
+    if (idx >= 0) {
+      db.tables.splice(idx, 1);
+      commit(tenantId);
+    }
+
+    return {
+      ok: true,
+      message: res?.message || "Table deleted successfully",
+    };
+  } catch (err) {
+    if (err instanceof ApiError && err.status !== 503) {
+      throw err;
+    }
+    console.warn("Could not delete table via backend, updating local store:", err);
+  }
+
+  await latency(80, 200);
+  const db = tenantDb(tenantId);
+  const idx = db.tables.findIndex((x) => x.id === tableId);
+  const target = idx >= 0 ? db.tables[idx] : undefined;
+  if (!target) throw new ApiError(404, "Table not found.");
+  if (target.status === "occupied") {
+    throw new ApiError(409, "Cannot delete table while occupied with an active order.");
+  }
+  db.tables.splice(idx, 1);
+  commit(tenantId);
+  return { ok: true, message: "Table deleted successfully" };
+}
+
 // ---------- Inventory ----------
 export async function listIngredients(tenantId: string, branchId: string): Promise<Ingredient[]> {
+  try {
+    const qs = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
+    const backendIngs = await backendFetch<any[]>(`/tenants/${tenantId}/inventory/ingredients${qs}`);
+    if (Array.isArray(backendIngs)) {
+      const db = tenantDb(tenantId);
+      const mapped: Ingredient[] = backendIngs.map((ing) => ({
+        id: ing.id,
+        tenantId: ing.tenantId || tenantId,
+        branchId: ing.branchId || branchId,
+        key: ing.key || ing.id,
+        name: ing.name,
+        unit: ing.unit,
+        stock: Number(ing.stock) || 0,
+        reorderLevel: Number(ing.reorderLevel) || 0,
+        unitCost: Number(ing.unitCost) || 0,
+      }));
+      db.ingredients = [
+        ...db.ingredients.filter((x) => x.branchId !== branchId),
+        ...mapped,
+      ];
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch ingredients from backend, using local store:", err);
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).ingredients.filter((i) => i.branchId === branchId);
 }

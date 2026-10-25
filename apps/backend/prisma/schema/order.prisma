@@ -33,6 +33,7 @@ model Order {
   type              OrderType     @default(DINE_IN)
   tableId           String?
   tableName         String?
+  customerId        String?
   customerName      String?       @default("")
   customerPhone     String?       @default("")
   notes             String?       @default("")
@@ -65,12 +66,14 @@ model Order {
   completedAt     DateTime?
   updatedAt       DateTime  @updatedAt
 
-  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch   Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  table    DiningTable?   @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  lines    OrderLine[]
-  payments OrderPayment[]
-  refunds  OrderRefund[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table               DiningTable?         @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines               OrderLine[]
+  payments            OrderPayment[]
+  refunds             OrderRefund[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@map("orders")
 }

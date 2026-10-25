@@ -1,23 +1,111 @@
 import { ACTIVATIONS, DEMO_PASSWORD, TENANTS, USERS } from "@/mocks/platform";
 import { ApiError, latency, tenantDb } from "@/mocks/db";
 import { readJson, storageKey, writeJson } from "@/lib/persistence";
-import type { Activation, ActivationStatus, Branch, Tenant, User } from "@/types/domain";
+import { backendFetch } from "@/services/api-client";
+import type { Activation, ActivationStatus, Branch, RoleId, Tenant, User } from "@/types/domain";
 
-// Auth, tenants and branches. Future: POST /auth/login, GET /me, GET /tenants, GET /tenants/:id/branches
+// Hydrate custom-registered / invited users from local persistence
+if (typeof window !== "undefined") {
+  const saved = readJson<User[]>(storageKey("custom-users"));
+  if (saved && Array.isArray(saved)) {
+    for (const u of saved) {
+      if (!USERS.some((x) => x.id === u.id)) {
+        USERS.push(u);
+      }
+    }
+  }
+}
+
+export function registerUser(u: User) {
+  const existingIdx = USERS.findIndex(
+    (x) => x.id === u.id || (u.email && x.email.toLowerCase() === u.email.toLowerCase())
+  );
+  if (existingIdx >= 0) {
+    USERS[existingIdx] = { ...USERS[existingIdx], ...u };
+  } else {
+    USERS.push(u);
+  }
+
+  const saved = readJson<User[]>(storageKey("custom-users")) || [];
+  const sIdx = saved.findIndex(
+    (x) => x.id === u.id || (u.email && x.email.toLowerCase() === u.email.toLowerCase())
+  );
+  if (sIdx >= 0) {
+    saved[sIdx] = u;
+  } else {
+    saved.push(u);
+  }
+  writeJson(storageKey("custom-users"), saved);
+}
 
 export async function login(email: string, password: string): Promise<User> {
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Attempt real authentication against backend
+  try {
+    const res = await backendFetch<any>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, password }),
+    });
+
+    if (res && res.accessToken) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pos_access_token", res.accessToken);
+        localStorage.setItem("accessToken", res.accessToken);
+      }
+
+      const role = (res.user?.role?.toLowerCase() || "waiter") as RoleId;
+      let user = USERS.find((u) => u.email.toLowerCase() === cleanEmail || u.id === res.user?.id);
+      if (!user) {
+        user = {
+          id: res.user?.id || `u_${Date.now()}`,
+          name: res.user?.name || cleanEmail.split("@")[0] || "Staff Member",
+          email: res.user?.email || cleanEmail,
+          initials: cleanEmail.slice(0, 2).toUpperCase(),
+          memberships: [
+            {
+              tenantId: "t_saffron",
+              role,
+              branchIds: "all",
+            },
+          ],
+        };
+        registerUser(user);
+      }
+      return user;
+    }
+  } catch (err: any) {
+    // If backend rejected with 401 Invalid Credentials
+    if (err instanceof ApiError && err.status === 401) {
+      const demoUser = USERS.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (!demoUser || password !== DEMO_PASSWORD) {
+        throw new ApiError(401, "Invalid email or password.");
+      }
+    }
+  }
+
+  // 2. Demo accounts fallback
   await latency(300, 600);
-  const user = USERS.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  const user = USERS.find((u) => u.email.toLowerCase() === cleanEmail);
   if (!user || password !== DEMO_PASSWORD) throw new ApiError(401, "Invalid email or password.");
   return user;
 }
 
 export async function getUser(userId: string): Promise<User> {
   await latency(50, 120);
-  const user = USERS.find((u) => u.id === userId);
+  let user = USERS.find((u) => u.id === userId);
+  if (!user) {
+    const saved = readJson<User[]>(storageKey("custom-users"));
+    user = saved?.find((u) => u.id === userId);
+    if (user && !USERS.some((x) => x.id === user!.id)) {
+      USERS.push(user);
+    }
+  }
   if (!user) throw new ApiError(401, "Session expired.");
   return user;
 }
+
 
 export async function requestPasswordReset(email: string): Promise<{ ok: true }> {
   await latency(400, 700);

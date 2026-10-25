@@ -5,19 +5,18 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateReservationDto {
   @ApiProperty({
     description: 'Branch ID where the reservation is being booked',
-    example: 'd09a0669-e7d6-44ce-a379-cb6a113a0c0a',
+    example: 'b_se_gulshan',
   })
-  @IsUUID()
+  @IsString()
   @IsNotEmpty()
   branchId: string;
 
@@ -79,9 +78,10 @@ export class CreateReservationDto {
 
   @ApiPropertyOptional({
     description: 'Dining table ID to assign (optional)',
-    example: '93f9e2e6-a2a2-4a57-b08e-173693e50772',
+    example: 't_se_g1',
   })
-  @IsUUID()
+  @Transform(({ value }) => (value === null || value === '' || value === 'none' ? undefined : value))
+  @IsString()
   @IsOptional()
   tableId?: string | null;
 

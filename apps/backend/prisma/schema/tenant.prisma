@@ -32,6 +32,12 @@ model Tenant {
   orders              Order[]
   reservations        Reservation[]
   reservationSettings ReservationSettings?
+  customers           Customer[]
+  loyaltySettings     LoyaltySettings?
+  loyaltyTiers        LoyaltyTier[]
+  loyaltyTransactions LoyaltyTransaction[]
+  promotions          Promotion[]
+  notifications       Notification[]
 
   @@map("tenants")
 }
@@ -62,8 +68,14 @@ model StaffMember {
   phone             String?
   hourlyRate        Float    @default(0.0)
   branchIds         String[] @default([])
-  active            Boolean  @default(true)
-  customPermissions String[] @default([])
+  active            Boolean   @default(true)
+  customPermissions String[]  @default([])
+  status            String    @default("ACTIVE")
+  inviteToken       String?
+  invitedAt         DateTime?
+  inviteExpiresAt   DateTime?
+  isDeleted         Boolean   @default(false)
+  deletedAt         DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -72,6 +84,8 @@ model StaffMember {
   tenantRole TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
   user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, isDeleted])
+  @@index([inviteToken])
   @@map("staff_members")
 }
 
@@ -98,6 +112,7 @@ model Branch {
   tables            DiningTable[]
   orders            Order[]
   reservations      Reservation[]
+  notifications     Notification[]
 
   @@unique([tenantId, name])
   @@map("branches")

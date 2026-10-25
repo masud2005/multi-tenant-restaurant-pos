@@ -14,9 +14,11 @@ export class ModifierGroupService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createModifierGroup(tenantSlug: string, dto: CreateModifierGroupDto) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -86,9 +88,11 @@ export class ModifierGroupService {
   }
 
   async getAllModifierGroups(tenantSlug: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -112,9 +116,11 @@ export class ModifierGroupService {
   }
 
   async getModifierGroupById(tenantSlug: string, groupId: string) {
-    // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    // 1. Verify tenant exists (support both slug and id)
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -231,15 +237,25 @@ export class ModifierGroupService {
     // 1. Verify group exists in tenant and is not deleted
     await this.getModifierGroupById(tenantSlug, groupId);
 
-    // 2. Soft delete modifier group
-    await this.prisma.modifierGroup.update({
-      where: { id: groupId },
-      data: {
-        isDeleted: true,
-        deletedAt: new Date(),
-        isActive: false,
-      },
-    });
+    // 2. Soft delete modifier group and options
+    await this.prisma.$transaction([
+      this.prisma.modifierOption.updateMany({
+        where: { groupId },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          isActive: false,
+        },
+      }),
+      this.prisma.modifierGroup.update({
+        where: { id: groupId },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          isActive: false,
+        },
+      }),
+    ]);
 
     return { message: 'Modifier group deleted successfully' };
   }

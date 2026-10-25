@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateReservationDto,
   GetReservationsQueryDto,
+  UpdateReservationDto,
   UpdateReservationSettingsDto,
   UpdateReservationStatusDto,
 } from './dto';
@@ -26,8 +27,10 @@ export class ReservationService {
    */
   async createReservation(tenantSlug: string, dto: CreateReservationDto) {
     // 1. Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -35,13 +38,24 @@ export class ReservationService {
     }
 
     // 2. Verify branch exists, is active, and belongs to tenant
-    const branch = await this.prisma.branch.findFirst({
-      where: {
-        id: dto.branchId,
-        tenantId: tenant.id,
-        isActive: true,
-      },
-    });
+    let branch = null;
+    if (dto.branchId) {
+      branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+          OR: [{ id: dto.branchId }, { name: dto.branchId }],
+        },
+      });
+    }
+    if (!branch) {
+      branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+        },
+      });
+    }
 
     if (!branch) {
       throw new NotFoundException('Branch');
@@ -74,10 +88,9 @@ export class ReservationService {
     if (normalizedTableId) {
       const table = await this.prisma.diningTable.findFirst({
         where: {
-          id: normalizedTableId,
-          branchId: branch.id,
           tenantId: tenant.id,
           isDeleted: false,
+          OR: [{ id: normalizedTableId }, { name: normalizedTableId }],
         },
       });
 
@@ -102,6 +115,7 @@ export class ReservationService {
         where: {
           tenantId: tenant.id,
           tableId: table.id,
+          isDeleted: false,
           status: {
             in: [ReservationStatus.BOOKED, ReservationStatus.SEATED],
           },
@@ -168,8 +182,10 @@ export class ReservationService {
    * Get all reservations for a restaurant with branch, status, table, and date filtering
    */
   async getReservations(tenantSlug: string, query: GetReservationsQueryDto) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -178,14 +194,27 @@ export class ReservationService {
 
     const where: Prisma.ReservationWhereInput = {
       tenantId: tenant.id,
+      isDeleted: false,
     };
 
     if (query.branchId) {
-      where.branchId = query.branchId;
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId: tenant.id,
+          OR: [{ id: query.branchId }, { name: query.branchId }],
+        },
+      });
+      where.branchId = branch ? branch.id : query.branchId;
     }
 
     if (query.tableId) {
-      where.tableId = query.tableId;
+      const table = await this.prisma.diningTable.findFirst({
+        where: {
+          tenantId: tenant.id,
+          OR: [{ id: query.tableId }, { name: query.tableId }],
+        },
+      });
+      where.tableId = table ? table.id : query.tableId;
     }
 
     if (query.status) {
@@ -249,8 +278,10 @@ export class ReservationService {
    * Get details of a single reservation
    */
   async getReservationById(tenantSlug: string, reservationId: string) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -261,6 +292,7 @@ export class ReservationService {
       where: {
         id: reservationId,
         tenantId: tenant.id,
+        isDeleted: false,
       },
       include: {
         table: {
@@ -292,8 +324,10 @@ export class ReservationService {
    * Get reservation settings for a tenant, initializing with defaults if not present
    */
   async getReservationSettings(tenantSlug: string) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -322,8 +356,10 @@ export class ReservationService {
     tenantSlug: string,
     dto: UpdateReservationSettingsDto,
   ) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -409,8 +445,10 @@ export class ReservationService {
     reservationId: string,
     dto: UpdateReservationStatusDto,
   ) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug: tenantSlug },
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
     });
 
     if (!tenant) {
@@ -421,6 +459,7 @@ export class ReservationService {
       where: {
         id: reservationId,
         tenantId: tenant.id,
+        isDeleted: false,
       },
       include: {
         table: true,
@@ -554,6 +593,286 @@ export class ReservationService {
       });
 
       return updatedReservation;
+    });
+  }
+
+  /**
+   * Update details of an existing reservation
+   */
+  async updateReservation(
+    tenantSlug: string,
+    reservationId: string,
+    dto: UpdateReservationDto,
+  ) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Restaurant');
+    }
+
+    const reservation = await this.prisma.reservation.findFirst({
+      where: {
+        id: reservationId,
+        tenantId: tenant.id,
+        isDeleted: false,
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation');
+    }
+
+    if (reservation.status !== ReservationStatus.BOOKED) {
+      throw new ConflictException('Only booked reservations can be edited.');
+    }
+
+    let targetBranchId = reservation.branchId;
+    if (dto.branchId && dto.branchId !== reservation.branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId: tenant.id,
+          isActive: true,
+          OR: [{ id: dto.branchId }, { name: dto.branchId }],
+        },
+      });
+      if (!branch) {
+        throw new NotFoundException('Branch');
+      }
+      targetBranchId = branch.id;
+    }
+
+    const customerName = dto.customerName?.trim() ?? reservation.customerName;
+    const phone = dto.phone !== undefined ? dto.phone.trim() : reservation.phone;
+    const partySize = dto.partySize ?? reservation.partySize;
+    const durationMin = dto.durationMin ?? reservation.durationMin;
+    const bookingDate = dto.at ? new Date(dto.at) : reservation.at;
+    const notes = dto.notes !== undefined ? dto.notes.trim() : reservation.notes;
+
+    let assignedTableId = reservation.tableId;
+    let assignedTableName = reservation.tableName;
+
+    if (dto.tableId !== undefined) {
+      const normalizedTableId =
+        dto.tableId && dto.tableId !== 'none' ? dto.tableId : null;
+
+      if (normalizedTableId) {
+        const table = await this.prisma.diningTable.findFirst({
+          where: {
+            tenantId: tenant.id,
+            isDeleted: false,
+            OR: [{ id: normalizedTableId }, { name: normalizedTableId }],
+          },
+        });
+
+        if (!table) {
+          throw new NotFoundException('Dining table in this restaurant');
+        }
+
+        if (table.seats < partySize) {
+          throw new BadRequestException(
+            `${table.name} seats only ${table.seats}.`,
+          );
+        }
+
+        // Collision check
+        const reqStart = bookingDate.getTime();
+        const reqEnd = reqStart + durationMin * 60000;
+        const maxLookbackMs = 8 * 60 * 60 * 1000;
+
+        const candidates = await this.prisma.reservation.findMany({
+          where: {
+            tenantId: tenant.id,
+            tableId: table.id,
+            isDeleted: false,
+            id: { not: reservation.id },
+            status: {
+              in: [ReservationStatus.BOOKED, ReservationStatus.SEATED],
+            },
+            at: {
+              gte: new Date(reqStart - maxLookbackMs),
+              lte: new Date(reqEnd),
+            },
+          },
+        });
+
+        for (const existing of candidates) {
+          const existStart = existing.at.getTime();
+          const existEnd = existStart + existing.durationMin * 60000;
+          if (reqStart < existEnd && existStart < reqEnd) {
+            throw new ConflictException(
+              `${table.name} is already booked for ${existing.customerName} at that time.`,
+            );
+          }
+        }
+
+        assignedTableId = table.id;
+        assignedTableName = table.name;
+      } else {
+        assignedTableId = null;
+        assignedTableName = null;
+      }
+    } else if (assignedTableId && (dto.at || dto.durationMin || dto.partySize)) {
+      // Table was not changed, but timing or party size changed: check capacity & collision on existing table
+      const table = await this.prisma.diningTable.findFirst({
+        where: {
+          id: assignedTableId,
+          tenantId: tenant.id,
+          isDeleted: false,
+        },
+      });
+
+      if (table) {
+        if (table.seats < partySize) {
+          throw new BadRequestException(
+            `${table.name} seats only ${table.seats}.`,
+          );
+        }
+
+        const reqStart = bookingDate.getTime();
+        const reqEnd = reqStart + durationMin * 60000;
+        const maxLookbackMs = 8 * 60 * 60 * 1000;
+
+        const candidates = await this.prisma.reservation.findMany({
+          where: {
+            tenantId: tenant.id,
+            tableId: table.id,
+            isDeleted: false,
+            id: { not: reservation.id },
+            status: {
+              in: [ReservationStatus.BOOKED, ReservationStatus.SEATED],
+            },
+            at: {
+              gte: new Date(reqStart - maxLookbackMs),
+              lte: new Date(reqEnd),
+            },
+          },
+        });
+
+        for (const existing of candidates) {
+          const existStart = existing.at.getTime();
+          const existEnd = existStart + existing.durationMin * 60000;
+          if (reqStart < existEnd && existStart < reqEnd) {
+            throw new ConflictException(
+              `${table.name} is already booked for ${existing.customerName} at that time.`,
+            );
+          }
+        }
+      }
+    }
+
+    return this.prisma.reservation.update({
+      where: { id: reservation.id },
+      data: {
+        customerName,
+        phone,
+        partySize,
+        at: bookingDate,
+        durationMin,
+        branchId: targetBranchId,
+        tableId: assignedTableId,
+        tableName: assignedTableName,
+        notes,
+      },
+      include: {
+        table: {
+          select: {
+            id: true,
+            name: true,
+            seats: true,
+            area: true,
+            status: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Soft delete a reservation (sets isDeleted: true, deletedAt: now)
+   */
+  async deleteReservation(tenantSlug: string, reservationId: string) {
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Restaurant');
+    }
+
+    const reservation = await this.prisma.reservation.findFirst({
+      where: {
+        id: reservationId,
+        tenantId: tenant.id,
+        isDeleted: false,
+      },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException('Reservation');
+    }
+
+    if (reservation.status === ReservationStatus.SEATED) {
+      throw new ConflictException(
+        'Cannot delete a reservation that is currently seated. Please complete or cancel the dining session first.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // If reservation had an assigned table, check if we need to release table status
+      if (reservation.tableId) {
+        const table = await tx.diningTable.findFirst({
+          where: {
+            id: reservation.tableId,
+            tenantId: tenant.id,
+            isDeleted: false,
+          },
+        });
+
+        if (table && table.status === TableStatus.RESERVED) {
+          // Check if there are other active reservations holding this table
+          const otherActive = await tx.reservation.findFirst({
+            where: {
+              tenantId: tenant.id,
+              tableId: table.id,
+              id: { not: reservation.id },
+              isDeleted: false,
+              status: ReservationStatus.BOOKED,
+            },
+          });
+
+          if (!otherActive) {
+            await tx.diningTable.update({
+              where: { id: table.id },
+              data: { status: TableStatus.AVAILABLE },
+            });
+          }
+        }
+      }
+
+      await tx.reservation.update({
+        where: { id: reservation.id },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Reservation deleted successfully',
+      };
     });
   }
 }

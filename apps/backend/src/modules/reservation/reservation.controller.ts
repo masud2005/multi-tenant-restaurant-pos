@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -20,6 +21,7 @@ import { ReservationService } from './reservation.service';
 import {
   CreateReservationDto,
   GetReservationsQueryDto,
+  UpdateReservationDto,
   UpdateReservationSettingsDto,
   UpdateReservationStatusDto,
 } from './dto';
@@ -267,5 +269,101 @@ export class ReservationController {
       reservation,
       'Reservation status updated successfully',
     );
+  }
+
+  @Put(':tenantSlug/reservations/:reservationId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.RESERVATIONS_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update reservation details',
+    description: 'Updates reservation guest details, party size, date/time, or table assignment.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug',
+  })
+  @ApiParam({
+    name: 'reservationId',
+    example: 'uuid',
+    description: 'Reservation ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservation updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed or table capacity exceeded',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation, restaurant or table not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Table is already booked during the requested time window',
+  })
+  async updateReservation(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('reservationId') reservationId: string,
+    @Body() dto: UpdateReservationDto,
+  ) {
+    const reservation = await this.reservationService.updateReservation(
+      tenantSlug,
+      reservationId,
+      dto,
+    );
+    return ResponseHelper.success(
+      reservation,
+      'Reservation updated successfully',
+    );
+  }
+
+  @Delete(':tenantSlug/reservations/:reservationId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.RESERVATIONS_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Soft delete a reservation',
+    description:
+      'Soft deletes a table reservation by setting isDeleted to true and releases any reserved dining table occupancy.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug',
+  })
+  @ApiParam({
+    name: 'reservationId',
+    example: 'uuid',
+    description: 'Reservation ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservation deleted successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation or restaurant not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Cannot delete an active seated reservation',
+  })
+  async deleteReservation(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('reservationId') reservationId: string,
+  ) {
+    const result = await this.reservationService.deleteReservation(
+      tenantSlug,
+      reservationId,
+    );
+    return ResponseHelper.success(result, 'Reservation deleted successfully');
   }
 }

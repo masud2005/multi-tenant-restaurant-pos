@@ -3,6 +3,7 @@ import { buildTenantSeed, DB_VERSION, type TenantDb } from "./seed";
 import { buildBackoffice } from "./seed-backoffice";
 import { buildPeople } from "./seed-people";
 import { buildStage4 } from "./seed-stage4";
+import { BRANCHES } from "./platform";
 
 // In-memory, per-tenant mock database. Each tenant's data lives in its own
 // storage key, so one restaurant can never read another's records.
@@ -50,6 +51,14 @@ export function tenantDb(tenantId: string): TenantDb {
     db.integrations ??= stage4Defaults.integrations;
     if (stage4Defaults.tenantSettings) {
       db.tenantSettings ??= stage4Defaults.tenantSettings;
+    }
+    // Ensure all defined branches for this tenant exist in db.branches
+    const defBranches = BRANCHES.filter((b) => b.tenantId === tenantId);
+    db.branches ??= [];
+    for (const b of defBranches) {
+      if (!db.branches.some((x) => x.id === b.id)) {
+        db.branches.push({ ...b });
+      }
     }
   }
 

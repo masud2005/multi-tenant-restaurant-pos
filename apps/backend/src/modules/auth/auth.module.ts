@@ -8,9 +8,12 @@ import { AuthPasswordController } from './controllers/password.controller';
 import { PasswordService } from './services/password.service';
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
 
+import { StaffModule } from '../staff/staff.module';
+
 @Module({
   imports: [
     PrismaModule,
+    StaffModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

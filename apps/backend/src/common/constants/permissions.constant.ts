@@ -41,7 +41,11 @@ export enum Permission {
   BRANCHES_MANAGE = 'branches.manage',
   PROMOTIONS_MANAGE = 'promotions.manage',
   SETTINGS_MANAGE = 'settings.manage',
+  REPORTS_VIEW = 'reports.view',
+  AUDIT_VIEW = 'audit.view',
+  NOTIFICATIONS_VIEW = 'notifications.view',
 }
+
 
 export const ALL_PERMISSIONS: Permission[] = Object.values(Permission);
 

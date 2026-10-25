@@ -1,0 +1,20 @@
+model Notification {
+  id        String           @id @default(uuid())
+  tenantId  String
+  branchId  String?
+  type      NotificationType @default(SYSTEM)
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  link      String?          @default("")
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, read])
+  @@index([tenantId, createdAt])
+  @@map("notifications")
+}
