@@ -1,7 +1,11 @@
 import { baseApi, run } from "@/app/base-api";
 import * as stage4 from "@/services/stage4.service";
 import type {
+  AuditEntity,
   AuditLog,
+  AuditLogQueryParams,
+  AuditLogStats,
+  PaginatedAuditLogs,
   FinancialReport,
   Integration,
   InventoryReport,
@@ -22,11 +26,11 @@ export const stage4Api = apiWithTags.injectEndpoints({
     // ---- Reports ----
     salesReport: b.query<SalesReport, T<{ branchId?: string | undefined; range?: string | undefined }>>({
       queryFn: ({ tenantId, branchId, range }) => run(() => stage4.getSalesReport(tenantId, branchId, range)),
-      providesTags: ["Reports", "Order"],
+      providesTags: ["Reports", { type: "Order", id: "LIST" }, "Order"],
     }),
     financialReport: b.query<FinancialReport, T<{ branchId?: string | undefined; range?: string | undefined }>>({
       queryFn: ({ tenantId, branchId, range }) => run(() => stage4.getFinancialReport(tenantId, branchId, range)),
-      providesTags: ["Reports", "Order"],
+      providesTags: ["Reports", { type: "Order", id: "LIST" }, "Order"],
     }),
     inventoryReport: b.query<InventoryReport, T<{ branchId?: string | undefined }>>({
       queryFn: ({ tenantId, branchId }) => run(() => stage4.getInventoryReport(tenantId, branchId)),
@@ -34,13 +38,35 @@ export const stage4Api = apiWithTags.injectEndpoints({
     }),
     operationsReport: b.query<OperationsReport, T<{ branchId?: string | undefined; range?: string | undefined }>>({
       queryFn: ({ tenantId, branchId, range }) => run(() => stage4.getOperationsReport(tenantId, branchId, range)),
-      providesTags: ["Reports", "Order"],
+      providesTags: ["Reports", { type: "Order", id: "LIST" }, "Order"],
     }),
 
     // ---- Audit Logs ----
-    auditLogs: b.query<AuditLog[], T<{ entity?: string | undefined }>>({
-      queryFn: ({ tenantId, entity }) => run(() => stage4.listAuditLogs(tenantId, entity)),
+    auditLogs: b.query<PaginatedAuditLogs, T<AuditLogQueryParams>>({
+      queryFn: ({ tenantId, ...params }) => run(() => stage4.listAuditLogs(tenantId, params)),
       providesTags: ["Audit"],
+    }),
+    auditLogStats: b.query<AuditLogStats, string>({
+      queryFn: (tenantId) => run(() => stage4.getAuditLogStats(tenantId)),
+      providesTags: ["Audit"],
+    }),
+    recordAuditLog: b.mutation<
+      AuditLog,
+      T<{
+        actorId?: string;
+        actorName: string;
+        actorRole?: string;
+        action: string;
+        entity: AuditEntity | string;
+        entityId?: string;
+        summary: string;
+        details?: string;
+        branchId?: string;
+        metadata?: Record<string, unknown>;
+      }>
+    >({
+      queryFn: ({ tenantId, ...input }) => run(() => stage4.recordAuditLog(tenantId, input)),
+      invalidatesTags: ["Audit"],
     }),
 
     // ---- Integrations ----
@@ -68,6 +94,8 @@ export const {
   useInventoryReportQuery,
   useOperationsReportQuery,
   useAuditLogsQuery,
+  useAuditLogStatsQuery,
+  useRecordAuditLogMutation,
   useIntegrationsQuery,
   useToggleIntegrationMutation,
   useUpdateSettingsMutation,

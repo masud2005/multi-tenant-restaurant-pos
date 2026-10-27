@@ -26,6 +26,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Permission } from '../../common/constants/permissions.constant';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('(Tenant) Orders & POS')
 @Controller('tenants')
@@ -59,8 +60,13 @@ export class OrderController {
   async createOrder(
     @Param('tenantSlug') tenantSlug: string,
     @Body() dto: CreateOrderDto,
+    @CurrentUser() currentUser: any,
   ) {
-    const order = await this.orderService.createOrder(tenantSlug, dto);
+    const order = await this.orderService.createOrder(
+      tenantSlug,
+      dto,
+      currentUser,
+    );
     return ResponseHelper.created(
       order,
       `Order ${order.orderNumber} created successfully`,

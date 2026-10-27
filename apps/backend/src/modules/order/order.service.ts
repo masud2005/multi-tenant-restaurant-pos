@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateOrderLineDto } from './dto/create-order-line.dto';
@@ -12,7 +18,13 @@ import {
   Prisma,
   TableStatus,
 } from '../../../prisma/generated/client';
-import { NotFoundException } from '../../common/exceptions/business.exception';
+
+export interface AuthenticatedUser {
+  id: string;
+  tenantId?: string;
+  branchId?: string;
+  role?: string;
+}
 
 @Injectable()
 export class OrderService {
@@ -28,11 +40,15 @@ export class OrderService {
   /**
    * Helper: Generate incremental daily order number (e.g. #1001, #1002)
    */
-  private async generateOrderNumber(tenantId: string): Promise<string> {
+  private async generateOrderNumber(
+    tenantId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
+    const prisma = tx || this.prisma;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayOrderCount = await this.prisma.order.count({
+    const todayOrderCount = await prisma.order.count({
       where: {
         tenantId,
         createdAt: { gte: today },
@@ -59,147 +75,199 @@ export class OrderService {
   }
 
   /**
-   * Create a new order (Supports both "Send" and "Send & Pay")
+   * Create a new order with atomic transaction, price validation & anti-tampering protection
    */
-  async createOrder(tenantSlug: string, dto: CreateOrderDto) {
-    // 1. Verify tenant exists and fetch tax & service charge rates
+  async createOrder(
+    tenantSlug: string,
+    dto: CreateOrderDto,
+    currentUser?: AuthenticatedUser,
+  ) {
+    // ১. টেন্যান্ট রিজলভ
     const tenant = await this.resolveTenant(tenantSlug);
 
-    // 2. Verify branch belongs to this tenant
-    let branch = await this.prisma.branch.findFirst({
+    // ২. স্টাফ ও ব্রাঞ্চ অথেন্টিকেশন (DTO নির্ভর নয়, সেশন নির্ভর)
+    const effectiveBranchId = currentUser?.branchId || dto.branchId;
+    if (!effectiveBranchId) {
+      throw new ForbiddenException('Staff must be assigned to an active branch.');
+    }
+
+    const branch = await this.prisma.branch.findFirst({
       where: {
-        id: dto.branchId,
+        id: effectiveBranchId,
         tenantId: tenant.id,
         isActive: true,
       },
     });
 
     if (!branch) {
-      branch = await this.prisma.branch.findFirst({
+      throw new NotFoundException('Active branch not found for this tenant.');
+    }
+
+    // ৩. ডাইন-ইন ও ডেলিভারি স্পেসিফিক ফিল্ড ভ্যালিডেশন
+    let tableName: string | null = null;
+    if (dto.type === OrderType.DINE_IN) {
+      if (!dto.tableId) {
+        throw new BadRequestException('A valid tableId is required for Dine-In orders.');
+      }
+
+      const table = await this.prisma.diningTable.findFirst({
         where: {
+          OR: [
+            { id: dto.tableId },
+            { name: dto.tableName || dto.tableId },
+          ],
+          branchId: branch.id,
           tenantId: tenant.id,
-          isActive: true,
+          isDeleted: false,
         },
       });
-    }
 
-    if (!branch) {
-      throw new NotFoundException('Branch');
-    }
-
-    // 3. Validation for specific order types
-    let tableName = dto.tableName;
-    if (dto.type === OrderType.DINE_IN) {
-      if (dto.tableId) {
-        let table = await this.prisma.diningTable.findFirst({
-          where: {
-            OR: [
-              { id: dto.tableId },
-              { name: dto.tableName || dto.tableId },
-            ],
-            tenantId: tenant.id,
-            branchId: branch.id,
-            isDeleted: false,
-          },
-        });
-
-        if (!table) {
-          table = await this.prisma.diningTable.findFirst({
-            where: {
-              tenantId: tenant.id,
-              branchId: branch.id,
-              isDeleted: false,
-            },
-          });
-        }
-
-        if (table) {
-          dto.tableId = table.id;
-          tableName = tableName || table.name;
-        } else {
-          dto.tableId = undefined;
-        }
+      if (!table) {
+        throw new NotFoundException('Selected dining table was not found in this branch.');
       }
+
+      // টেবিল অলরেডি অন্য রানিং অর্ডারে অকুপাইড কি না তা চেক
+      if (table.status === TableStatus.OCCUPIED) {
+        throw new ConflictException(`Table ${table.name} is currently occupied.`);
+      }
+
+      tableName = table.name;
+      dto.tableId = table.id;
     } else if (dto.type === OrderType.DELIVERY) {
       if (!dto.deliveryAddress?.trim() || !dto.customerPhone?.trim()) {
         throw new BadRequestException(
-          'Delivery order requires customer phone number and delivery address',
+          'Customer phone and delivery address are mandatory for delivery orders.',
         );
       }
     }
 
-    // Verify customer exists if customerId is passed
+    // ৪. কাস্টমার ভ্যালিডেশন (যদি ফিল্ড থাকে)
     let customerId = dto.customerId;
     if (customerId) {
       const cust = await this.prisma.customer.findFirst({
         where: { id: customerId, tenantId: tenant.id, isDeleted: false },
       });
-      if (!cust && dto.customerPhone) {
-        const custByPhone = await this.prisma.customer.findFirst({
-          where: { phone: dto.customerPhone, tenantId: tenant.id, isDeleted: false },
-        });
-        customerId = custByPhone?.id;
-      } else if (!cust) {
-        customerId = undefined;
+      if (!cust) {
+        customerId = undefined; // ইনভ্যালিড ফরেন কি আটকাতে
       }
     }
 
-    // 4. Calculate Subtotal, Discount, Service Charge, Tax, and Grand Total
-    const subtotal = this.round2(
-      dto.lines.reduce((total, line) => {
-        const modifiersCost = (line.modifiers || []).reduce(
-          (mSum, m) => mSum + Number(m.price || 0),
-          0,
-        );
-        return (
-          total +
-          (Number(line.unitPrice) + modifiersCost) * Number(line.qty)
-        );
-      }, 0),
-    );
+    // ৫. মেন্যু আইটেম ব্যাচ ফেচ (N+1 কোয়েরি এভয়েড এবং প্রাইস ট্যাম্পারিং রোধ)
+    if (!dto.lines || dto.lines.length === 0) {
+      throw new BadRequestException('Order must contain at least one line item.');
+    }
 
+    const targetItemIds = Array.from(
+      new Set(dto.lines.map((l) => l.menuItemId || l.itemId).filter(Boolean)),
+    ) as string[];
+
+    const dbMenuItems = await this.prisma.menuItem.findMany({
+      where: {
+        id: { in: targetItemIds },
+        tenantId: tenant.id,
+        available: true,
+        isDeleted: false,
+      },
+      include: {
+        variants: true,
+      },
+    });
+
+    const itemMap = new Map<string, (typeof dbMenuItems)[0]>();
+    for (const item of dbMenuItems) {
+      itemMap.set(item.id, item);
+      itemMap.set(item.name.toLowerCase().trim(), item);
+    }
+
+    // ৬. সার্ভার সাইড প্রাইস ও ফিন্যান্সিয়াল ক্যালকুলেশন
+    let subtotalCents = 0;
+
+    const validatedLines = dto.lines.map((line) => {
+      const itemId = line.menuItemId || line.itemId;
+      const dbItem = itemId ? itemMap.get(itemId) : itemMap.get(line.name?.toLowerCase().trim());
+
+      if (!dbItem) {
+        throw new BadRequestException(`Menu item "${line.name}" is unavailable or does not exist.`);
+      }
+
+      // ভ্যারিয়েন্ট থাকলে ভ্যারিয়েন্টের প্রাইস, নয়তো বেস আইটেমের প্রাইস
+      let resolvedUnitPrice = Number(dbItem.price);
+      let selectedVariantName: string | null = null;
+
+      if (line.variantId) {
+        const variant = dbItem.variants.find((v) => v.id === line.variantId);
+        if (!variant) {
+          throw new BadRequestException(`Invalid variant selected for ${dbItem.name}.`);
+        }
+        resolvedUnitPrice =
+          (variant as any).price !== undefined
+            ? Number((variant as any).price)
+            : Number(dbItem.price) + Number(variant.priceDelta || 0);
+        selectedVariantName = variant.name;
+      }
+
+      // মডিফায়ার কস্ট
+      const modifiersCost = (line.modifiers || []).reduce(
+        (sum, mod) => sum + Number(mod.price || 0),
+        0,
+      );
+
+      const lineTotal = (resolvedUnitPrice + modifiersCost) * Number(line.qty);
+      subtotalCents += Math.round(lineTotal * 100);
+
+      return {
+        menuItemId: dbItem.id,
+        name: dbItem.name,
+        variantId: line.variantId || null,
+        variantName: selectedVariantName || line.variantName || null,
+        qty: Number(line.qty),
+        unitPrice: resolvedUnitPrice,
+        notes: line.notes?.trim() || '',
+        modifiers: line.modifiers?.length
+          ? {
+              create: line.modifiers.map((m) => ({
+                groupId: m.groupId || null,
+                optionId: m.optionId || null,
+                name: m.name,
+                price: Number(m.price || 0),
+              })),
+            }
+          : undefined,
+      };
+    });
+
+    const subtotal = subtotalCents / 100;
+
+    // ৭. ডিসকাউন্ট ভ্যালিডেশন
     let discountAmount = 0;
     if (dto.discount && dto.discount.value > 0) {
       discountAmount =
         dto.discount.kind === 'percent'
-          ? (subtotal * Math.min(dto.discount.value, 100)) / 100
-          : dto.discount.value;
+          ? (subtotal * Math.min(Number(dto.discount.value), 100)) / 100
+          : Number(dto.discount.value);
     }
-    discountAmount = this.round2(Math.min(discountAmount, subtotal));
+    discountAmount = Math.min(this.round2(discountAmount), subtotal);
 
-    const netAmount = subtotal - discountAmount;
+    const netAmount = this.round2(subtotal - discountAmount);
 
-    // Service charge applies to Dine-in orders
+    // ৮. সার্ভিস চার্জ ও ট্যাক্স
     const serviceCharge =
       dto.type === OrderType.DINE_IN
-        ? this.round2(netAmount * (tenant.serviceChargeRate || 0))
+        ? this.round2(netAmount * Number(tenant.serviceChargeRate || 0))
         : 0;
 
     const tax = this.round2(
-      (netAmount + serviceCharge) * (tenant.taxRate || 0),
+      (netAmount + serviceCharge) * Number(tenant.taxRate || 0),
     );
 
     const grandTotal = this.round2(netAmount + serviceCharge + tax);
 
-    // 5. Generate human-readable Order Number
-    const orderNumber = await this.generateOrderNumber(tenant.id);
+    // ৯. সম্পূর্ণ অ্যাটমিক ট্রানজ্যাকশন (ডাটাবেজ কনসিস্টেন্সি ও সেফটি নিশ্চিত করতে)
+    return await this.prisma.$transaction(async (tx) => {
+      // ট্রানজ্যাকশনের ভেতর সিকুয়েন্সিয়াল অর্ডার নাম্বার জেনারেশন
+      const orderNumber = await this.generateOrderNumber(tenant.id, tx);
 
-    // Filter valid menuItem IDs to avoid foreign key errors on custom/mock items
-    const menuItemIds = dto.lines
-      .map((l) => l.menuItemId || l.itemId)
-      .filter((id): id is string => Boolean(id));
-
-    const existingMenuItems = menuItemIds.length
-      ? await this.prisma.menuItem.findMany({
-          where: { id: { in: menuItemIds }, tenantId: tenant.id },
-          select: { id: true },
-        })
-      : [];
-    const validMenuItemIdSet = new Set(existingMenuItems.map((m) => m.id));
-
-    // 6. Execute atomic Prisma Transaction
-    const order = await this.prisma.$transaction(async (tx) => {
-      // A. Create the Order with nested OrderLines and Modifiers
+      // A. অর্ডার এবং নেস্টেড লাইন আইটেমস তৈরি
       const createdOrder = await tx.order.create({
         data: {
           tenantId: tenant.id,
@@ -213,7 +281,7 @@ export class OrderService {
           customerPhone: dto.customerPhone?.trim() || '',
           deliveryAddress: dto.deliveryAddress?.trim() || null,
           notes: dto.notes?.trim() || '',
-          createdBy: dto.createdBy?.trim() || '',
+          createdBy: currentUser?.id || dto.createdBy?.trim() || 'Staff',
           status: OrderStatus.IN_KITCHEN,
           kitchenStatus: KitchenStatus.NEW,
           subtotal,
@@ -224,44 +292,20 @@ export class OrderService {
           serviceCharge,
           tax,
           total: grandTotal,
-          paid: dto.payment ? dto.payment.amount : 0.0,
+          paid: dto.payment ? Number(dto.payment.amount) : 0.0,
 
-          // Nested create for Order Lines and their Modifiers
           lines: {
-            create: dto.lines.map((line) => {
-              const rawItemId = line.menuItemId || line.itemId;
-              const validItemId = rawItemId && validMenuItemIdSet.has(rawItemId) ? rawItemId : null;
-              return {
-                menuItemId: validItemId,
-                name: line.name,
-                variantId: line.variantId || null,
-                variantName: line.variantName || null,
-                qty: line.qty,
-                unitPrice: line.unitPrice,
-                notes: line.notes || '',
-                modifiers: line.modifiers?.length
-                  ? {
-                      create: line.modifiers.map((m) => ({
-                        groupId: m.groupId || null,
-                        optionId: m.optionId || null,
-                        name: m.name,
-                        price: m.price,
-                      })),
-                    }
-                  : undefined,
-              };
-            }),
+            create: validatedLines,
           },
 
-          // Nested create for Payment if "Send & Pay" was clicked
           payments: dto.payment
             ? {
                 create: {
                   method: dto.payment.method,
-                  amount: dto.payment.amount,
-                  tendered: dto.payment.tendered ?? dto.payment.amount,
-                  change: dto.payment.change ?? 0,
-                  reference: dto.payment.reference ?? '',
+                  amount: Number(dto.payment.amount),
+                  tendered: Number(dto.payment.tendered ?? dto.payment.amount),
+                  change: Number(dto.payment.change ?? 0),
+                  reference: dto.payment.reference?.trim() || '',
                 },
               }
             : undefined,
@@ -283,7 +327,7 @@ export class OrderService {
         },
       });
 
-      // B. If Dine-in with tableId, mark table as OCCUPIED and link current order
+      // B. ডাইন-ইন হলে একই ট্রানজ্যাকশনে টেবিল স্টেট আপডেট
       if (dto.type === OrderType.DINE_IN && dto.tableId) {
         await tx.diningTable.update({
           where: { id: dto.tableId },
@@ -296,8 +340,6 @@ export class OrderService {
 
       return createdOrder;
     });
-
-    return order;
   }
 
   /**

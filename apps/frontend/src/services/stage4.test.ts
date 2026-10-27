@@ -6,6 +6,7 @@ import {
   getOperationsReport,
   listAuditLogs,
   recordAuditLog,
+  getAuditLogStats,
   listIntegrations,
   toggleIntegration,
   updateTenantSettings,
@@ -21,6 +22,16 @@ describe("Stage 4: Reports, Audit Logs, Integrations & Settings", () => {
     expect(report.avgOrderValue).toBeGreaterThan(0);
     expect(report.dailySales.length).toBe(7);
     expect(report.topItems.length).toBeGreaterThan(0);
+    expect(report.topItems[0]?.name).toBeDefined();
+    expect(report.topItems[0]?.qty).toBeGreaterThan(0);
+    expect(report.topItems[0]?.revenue).toBeGreaterThan(0);
+    expect(typeof report.topItems[0]?.percentage).toBe("number");
+    expect(report.hourlySales.length).toBe(8);
+    expect(report.hourlySales[0]?.hour).toBe("08:00");
+    expect(report.hourlySales[0]?.label).toBe("08:00 - 10:00");
+    expect(typeof report.hourlySales[0]?.orders).toBe("number");
+    expect(typeof report.hourlySales[0]?.sales).toBe("number");
+    expect(report.hourlySales.some((h) => h.isPeak)).toBe(true);
   });
 
   it("computes financial report with gross sales, tax, discounts and net profit", async () => {
@@ -60,6 +71,16 @@ describe("Stage 4: Reports, Audit Logs, Integrations & Settings", () => {
     const logs = await listAuditLogs(demoTenantId, "order");
     expect(logs[0]?.id).toBe(created.id);
     expect(logs[0]?.summary).toBe("Voided test order due to mistake");
+
+    // Test with query filters object
+    const filtered = await listAuditLogs(demoTenantId, { entity: "order", search: "mistake" });
+    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered[0]?.summary).toContain("mistake");
+
+    // Test stats
+    const stats = await getAuditLogStats(demoTenantId);
+    expect(stats.total).toBeGreaterThan(0);
+    expect(stats.criticalCount).toBeGreaterThan(0);
   });
 
   it("toggles third party integrations and records an audit trail", async () => {

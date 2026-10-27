@@ -116,6 +116,14 @@ export const api = baseApi.injectEndpoints({
       queryFn: (tenantId) => run(() => ops.markNotificationsRead(tenantId)),
       invalidatesTags: ["Notification"],
     }),
+    markSingleNotificationRead: b.mutation<{ ok: true }, { tenantId: string; notificationId: string }>({
+      queryFn: ({ tenantId, notificationId }) => run(() => ops.markSingleNotificationRead(tenantId, notificationId)),
+      invalidatesTags: ["Notification"],
+    }),
+    deleteNotification: b.mutation<{ ok: true }, { tenantId: string; notificationId: string }>({
+      queryFn: ({ tenantId, notificationId }) => run(() => ops.deleteNotification(tenantId, notificationId)),
+      invalidatesTags: ["Notification"],
+    }),
     dashboard: b.query<ops.DashboardSummary, T<{ branchId: string }>>({
       queryFn: ({ tenantId, branchId }) => run(() => ops.getDashboard(tenantId, branchId)),
       providesTags: ["Dashboard"],
@@ -149,5 +157,7 @@ export const {
   useMovementsQuery,
   useNotificationsQuery,
   useMarkNotificationsReadMutation,
+  useMarkSingleNotificationReadMutation,
+  useDeleteNotificationMutation,
   useDashboardQuery,
 } = api;

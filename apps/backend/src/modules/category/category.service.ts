@@ -153,15 +153,25 @@ export class CategoryService {
   }
 
   async deleteCategory(tenantSlug: string, categoryId: string) {
-    // 1. Verify category exists for this tenant
-    await this.getCategoryById(tenantSlug, categoryId);
+  // ১টি মাত্র কুয়েরিতে টেন্যান্ট ভেরিফিকেশন এবং সফট ডিলিট একসাথে
+  const result = await this.prisma.category.updateMany({
+    where: {
+      id: categoryId,
+      tenant: {
+        slug: tenantSlug, // নিশ্চিত করা যে ক্যাটাগরি কেবল এই টেন্যান্টেরই
+      },
+      isActive: true, // অলরেডি ডিলিট হয়ে থাকলে অপ্রয়োজনীয় রাইট আটকাবে
+    },
+    data: {
+      isActive: false,
+    },
+  });
 
-    // 2. Soft delete category (set isActive to false to preserve historical records)
-    await this.prisma.category.update({
-      where: { id: categoryId },
-      data: { isActive: false },
-    });
-
-    return { message: 'Category deleted successfully' };
+  // যদি কোনো রো আপডেট না হয়, তার মানে ক্যাটাগরি নেই অথবা অন্য টেন্যান্টের
+  if (result.count === 0) {
+    throw new NotFoundException('Category not found or access denied');
   }
+
+  return { message: 'Category deleted successfully' };
+}
 }

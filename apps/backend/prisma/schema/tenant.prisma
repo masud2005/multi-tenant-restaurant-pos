@@ -38,6 +38,7 @@ model Tenant {
   loyaltyTransactions LoyaltyTransaction[]
   promotions          Promotion[]
   notifications       Notification[]
+  auditLogs           AuditLog[]
 
   @@map("tenants")
 }
@@ -113,6 +114,7 @@ model Branch {
   orders            Order[]
   reservations      Reservation[]
   notifications     Notification[]
+  auditLogs         AuditLog[]
 
   @@unique([tenantId, name])
   @@map("branches")

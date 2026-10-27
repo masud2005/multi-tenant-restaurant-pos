@@ -3,10 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, GetNotificationsQueryDto } from './dto';
 import { NotFoundException } from '../../common/exceptions/business.exception';
 import { Prisma } from '../../../prisma/generated/client';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
   /**
    * Helper to resolve tenant by either slug or UUID
@@ -27,6 +31,7 @@ export class NotificationsService {
 
   /**
    * Create a new notification for a tenant (and optionally a branch)
+   * Broadcasts immediately via WebSocket Gateway
    */
   async create(tenantSlugOrId: string, dto: CreateNotificationDto) {
     const tenant = await this.resolveTenant(tenantSlugOrId);
@@ -41,7 +46,7 @@ export class NotificationsService {
       }
     }
 
-    return this.prisma.notification.create({
+    const created = await this.prisma.notification.create({
       data: {
         tenantId: tenant.id,
         branchId: dto.branchId || null,
@@ -53,6 +58,15 @@ export class NotificationsService {
         read: false,
       },
     });
+
+    // Real-time broadcast to all connected devices in this tenant's room
+    try {
+      this.notificationsGateway.sendNotificationToTenant(tenant.id, created);
+    } catch {
+      // Gateway emit failure should not block database persistence
+    }
+
+    return created;
   }
 
   /**
@@ -116,10 +130,18 @@ export class NotificationsService {
       throw new NotFoundException('Notification');
     }
 
-    return this.prisma.notification.update({
+    const updated = await this.prisma.notification.update({
       where: { id: notification.id },
       data: { read: true },
     });
+
+    try {
+      this.notificationsGateway.sendNotificationRead(tenant.id, notification.id);
+    } catch {
+      // ignore
+    }
+
+    return updated;
   }
 
   /**
@@ -137,6 +159,12 @@ export class NotificationsService {
         read: true,
       },
     });
+
+    try {
+      this.notificationsGateway.sendAllNotificationsRead(tenant.id);
+    } catch {
+      // ignore
+    }
 
     return { count: result.count, ok: true };
   }
@@ -158,6 +186,12 @@ export class NotificationsService {
     await this.prisma.notification.delete({
       where: { id: notification.id },
     });
+
+    try {
+      this.notificationsGateway.sendNotificationDeleted(tenant.id, notification.id);
+    } catch {
+      // ignore
+    }
 
     return { ok: true };
   }

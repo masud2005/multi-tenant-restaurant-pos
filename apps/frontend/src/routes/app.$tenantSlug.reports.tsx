@@ -10,6 +10,9 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  ComposedChart,
+  Line,
+  Legend,
   PieChart,
   Pie,
   Cell,
@@ -23,6 +26,7 @@ import {
   Download,
   Package,
   Receipt,
+  RefreshCw,
   ShoppingCart,
   TrendingUp,
   Users,
@@ -69,7 +73,10 @@ function ReportsPage() {
 
   const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
 
-  const sales = useSalesReportQuery({ tenantId: tenant.id, branchId: branchParam, range });
+  const sales = useSalesReportQuery(
+    { tenantId: tenant.id, branchId: branchParam, range },
+    { pollingInterval: 5000 },
+  );
   const financial = useFinancialReportQuery({ tenantId: tenant.id, branchId: branchParam, range });
   const inventory = useInventoryReportQuery({ tenantId: tenant.id, branchId: branchParam });
   const operations = useOperationsReportQuery({ tenantId: tenant.id, branchId: branchParam, range });
@@ -227,66 +234,283 @@ function ReportsPage() {
 
               {/* Charts */}
               <div className="grid gap-6 lg:grid-cols-7">
-                <Card className="lg:col-span-4">
-                  <CardHeader>
-                    <CardTitle>Sales Trend</CardTitle>
-                    <CardDescription>Daily revenue and order volume</CardDescription>
+                <Card className="lg:col-span-4 border-border/80 shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <CardTitle className="text-base font-semibold">Sales Trend</CardTitle>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold tracking-wide uppercase">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Live Real-Time
+                        </span>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        Daily revenue and order volume (auto-synced)
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                      onClick={() => sales.refetch()}
+                      disabled={sales.isFetching}
+                      title="Sync latest live orders"
+                    >
+                      <RefreshCw className={`size-3.5 ${sales.isFetching ? "animate-spin" : ""}`} />
+                      <span className="hidden sm:inline">Sync</span>
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={sales.data.dailySales}>
+                        <ComposedChart data={sales.data.dailySales} margin={{ top: 10, right: 10, left: 5, bottom: 0 }}>
                           <defs>
                             <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="var(--border)" />
-                          <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} />
-                          <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} tickFormatter={(val) => `${val}`} />
-                          <Tooltip
-                            contentStyle={{
-                              background: "var(--popover)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              color: "var(--foreground)",
-                            }}
-                            formatter={(val: any) => [money(Number(val)), "Sales"]}
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="var(--border)" vertical={false} />
+                          <XAxis
+                            dataKey="date"
+                            stroke="var(--muted-foreground)"
+                            fontSize={12}
+                            tickLine={false}
+                            axisLine={false}
                           />
-                          <Area type="monotone" dataKey="sales" stroke="var(--primary)" fill="url(#salesGrad)" />
-                        </AreaChart>
+                          <YAxis
+                            yAxisId="revenue"
+                            width={92}
+                            stroke="var(--muted-foreground)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(val) => (val === 0 ? "0" : money(val))}
+                          />
+                          <YAxis
+                            yAxisId="orders"
+                            width={35}
+                            orientation="right"
+                            stroke="var(--muted-foreground)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                            allowDecimals={false}
+                            tickFormatter={(val) => `${val}`}
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload || !payload.length) return null;
+                              const data = payload[0].payload;
+                              const revenue = Number(data.sales || 0);
+                              const ordersCount = Number(data.orders || 0);
+                              const avg = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
+                              return (
+                                <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-xs space-y-2 min-w-[170px]">
+                                  <div className="font-semibold text-foreground border-b border-border/50 pb-1 flex justify-between items-center">
+                                    <span>{data.fullDate || label}</span>
+                                    {label === "Today" && (
+                                      <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-500 font-mono text-[10px] rounded">
+                                        Today
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between text-muted-foreground">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="size-2 rounded-full bg-primary inline-block"></span>
+                                      Revenue:
+                                    </span>
+                                    <span className="font-bold text-foreground font-mono">{money(revenue)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-muted-foreground">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="size-2 rounded-full bg-blue-500 inline-block"></span>
+                                      Orders:
+                                    </span>
+                                    <span className="font-bold text-blue-500 font-mono">{ordersCount} orders</span>
+                                  </div>
+                                  {ordersCount > 0 && (
+                                    <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 pt-1 border-t border-border/30">
+                                      <span>Avg / Order:</span>
+                                      <span className="font-medium text-foreground font-mono">{money(avg)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }}
+                          />
+                          <Legend
+                            verticalAlign="top"
+                            height={32}
+                            formatter={(value) => <span className="text-xs text-muted-foreground font-medium">{value}</span>}
+                          />
+                          <Area
+                            yAxisId="revenue"
+                            type="monotone"
+                            dataKey="sales"
+                            name="Revenue"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2.5}
+                            fill="url(#salesGrad)"
+                          />
+                          <Line
+                            yAxisId="orders"
+                            type="monotone"
+                            dataKey="orders"
+                            name="Order Volume"
+                            stroke="#3b82f6"
+                            strokeWidth={2.5}
+                            dot={{ r: 4, fill: "#3b82f6", strokeWidth: 1.5, stroke: "#ffffff" }}
+                            activeDot={{ r: 6, fill: "#2563eb", stroke: "#ffffff", strokeWidth: 2 }}
+                          />
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="lg:col-span-3">
-                  <CardHeader>
-                    <CardTitle>Hourly Rush Times</CardTitle>
-                    <CardDescription>Order distribution by time of day</CardDescription>
+                <Card className="lg:col-span-3 border-border/80 shadow-sm flex flex-col justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-semibold">Hourly Rush Times</CardTitle>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold tracking-wide uppercase">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Live Rush
+                        </span>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        {range === "today"
+                          ? "Today's live traffic & rush distribution"
+                          : `Peak order density (${range === "30d" ? "last 30 days" : "last 7 days"})`}
+                      </CardDescription>
+                    </div>
+                    {/* Peak Rush Badge */}
+                    {(() => {
+                      const peak = sales.data.hourlySales.reduce(
+                        (prev, curr) => (curr.orders > prev.orders ? curr : prev),
+                        sales.data.hourlySales[0] || { orders: 0, hour: "", label: "", sales: 0 },
+                      );
+                      if (peak && peak.orders > 0) {
+                        return (
+                          <div className="hidden sm:flex flex-col items-end text-right">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
+                              Peak: {peak.hour}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground mt-0.5">
+                              {peak.orders} orders • {money(peak.sales)}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </CardHeader>
-                  <CardContent>
-                    <div className="h-[300px]">
+                  <CardContent className="space-y-3">
+                    <div className="h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={sales.data.hourlySales}>
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="var(--border)" />
-                          <XAxis dataKey="hour" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} />
-                          <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} />
+                        <BarChart
+                          data={sales.data.hourlySales}
+                          margin={{ top: 10, right: 8, left: -20, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="var(--border)" vertical={false} />
+                          <XAxis
+                            dataKey="hour"
+                            stroke="var(--muted-foreground)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="var(--muted-foreground)"
+                            fontSize={11}
+                            tickLine={false}
+                            axisLine={false}
+                            allowDecimals={false}
+                            tickFormatter={(val) => `${val}`}
+                          />
                           <Tooltip
-                            contentStyle={{
-                              background: "var(--popover)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              color: "var(--foreground)",
+                            cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
+                            content={({ active, payload }) => {
+                              if (!active || !payload || !payload.length) return null;
+                              const d = payload[0].payload;
+                              const ordersCount = Number(d.orders || 0);
+                              const salesVal = Number(d.sales || 0);
+                              const avgVal = ordersCount > 0 ? Math.round(salesVal / ordersCount) : 0;
+                              return (
+                                <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-xs space-y-2 min-w-[185px]">
+                                  <div className="font-semibold text-foreground border-b border-border/50 pb-1 flex items-center justify-between">
+                                    <div>
+                                      <div className="font-bold text-foreground text-xs">{d.label || d.hour}</div>
+                                      {d.period && <div className="text-[10px] text-muted-foreground font-normal">{d.period}</div>}
+                                    </div>
+                                    {d.isPeak && ordersCount > 0 && (
+                                      <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 font-semibold text-[10px] rounded">
+                                        Peak
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1 pt-0.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-muted-foreground flex items-center gap-1.5">
+                                        <span className="size-2 rounded-full bg-primary inline-block"></span>
+                                        Orders Volume:
+                                      </span>
+                                      <span className="font-bold text-foreground font-mono">{ordersCount} orders</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-muted-foreground flex items-center gap-1.5">
+                                        <span className="size-2 rounded-full bg-muted-foreground/50 inline-block"></span>
+                                        Rush Revenue:
+                                      </span>
+                                      <span className="font-bold text-foreground font-mono">
+                                        {money(salesVal)}
+                                      </span>
+                                    </div>
+                                    {ordersCount > 0 && (
+                                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
+                                        <span>Avg / Order:</span>
+                                        <span className="font-mono text-foreground">{money(avgVal)}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
                             }}
-                            formatter={(val: any) => [val, "Orders"]}
                           />
                           <Bar dataKey="orders" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
+                    </div>
+
+                    {/* Footer KPI bar */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40 text-center">
+                      <div className="p-1.5 rounded-md bg-muted/40">
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Rush Orders</p>
+                        <p className="text-xs font-bold font-mono text-foreground">
+                          {sales.data.hourlySales.reduce((sum, h) => sum + h.orders, 0)}
+                        </p>
+                      </div>
+                      <div className="p-1.5 rounded-md bg-muted/40">
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Rush Sales</p>
+                        <p className="text-xs font-bold font-mono text-foreground">
+                          {money(sales.data.hourlySales.reduce((sum, h) => sum + h.sales, 0))}
+                        </p>
+                      </div>
+                      <div className="p-1.5 rounded-md bg-muted/40">
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium">Sync State</p>
+                        <p className="text-xs font-semibold text-emerald-500 flex items-center justify-center gap-1">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Real-time
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -294,35 +518,102 @@ function ReportsPage() {
 
               {/* Top Selling Items & Categories */}
               <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Top Selling Food Items</CardTitle>
-                    <CardDescription>Highest revenue generating dishes</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {sales.data.topItems.map((item, idx) => (
-                        <div key={item.itemId} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="flex size-7 items-center justify-center rounded-full bg-muted font-bold text-xs">
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <p className="font-medium text-sm">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{item.qty} units sold</p>
-                            </div>
-                          </div>
-                          <span className="font-semibold text-sm">{money(item.revenue)}</span>
-                        </div>
-                      ))}
+                <Card className="border-border/80 shadow-sm flex flex-col justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-semibold">Top Selling Food Items</CardTitle>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold tracking-wide uppercase">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Live Items
+                        </span>
+                      </div>
+                      <CardDescription className="text-xs mt-0.5">
+                        {range === "today"
+                          ? "Today's highest volume & revenue dishes"
+                          : `Top dishes ranked by revenue (${range === "30d" ? "last 30 days" : "last 7 days"})`}
+                      </CardDescription>
                     </div>
+                    {sales.data.topItems.length > 0 && (
+                      <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full font-mono">
+                        {sales.data.topItems.reduce((acc, i) => acc + i.qty, 0)} items sold
+                      </span>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {sales.data.topItems.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <p className="text-sm">No food items sold in this period yet.</p>
+                        <p className="text-xs mt-1 text-muted-foreground/70">
+                          New orders placed in the POS will appear here live in real time.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {sales.data.topItems.map((item, idx) => {
+                          const percentage = item.percentage ?? 0;
+                          return (
+                            <div key={item.itemId} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span
+                                    className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                      idx === 0
+                                        ? "bg-primary text-primary-foreground shadow-sm"
+                                        : idx === 1
+                                        ? "bg-muted text-foreground font-semibold"
+                                        : idx === 2
+                                        ? "bg-muted/80 text-muted-foreground font-semibold"
+                                        : "bg-muted/50 text-muted-foreground"
+                                    }`}
+                                  >
+                                    {idx + 1}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-sm text-foreground truncate" title={item.name}>
+                                      {item.name}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      <span className="font-semibold text-foreground">{item.qty} units</span> sold
+                                      {item.avgPrice ? ` • Avg: ${money(item.avgPrice)}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="font-bold text-sm font-mono text-foreground">{money(item.revenue)}</p>
+                                  {percentage > 0 && (
+                                    <p className="text-[10px] text-muted-foreground font-medium">
+                                      {percentage}% of sales
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Visual Progress Bar */}
+                              <div className="h-1.5 w-full bg-muted/60 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                                  style={{ width: `${Math.max(percentage, 4)}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Sales by Menu Category</CardTitle>
-                    <CardDescription>Category contribution to revenue</CardDescription>
+                <Card className="border-border/80 shadow-sm flex flex-col justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Sales by Menu Category</CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        Category contribution to food revenue
+                      </CardDescription>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[220px]">

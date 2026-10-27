@@ -14,6 +14,7 @@ import type {
   MenuItem,
   ModifierGroup,
   Notification,
+  NotificationType,
   Order,
   OrderLine,
   OrderStatus,
@@ -1145,16 +1146,111 @@ export async function listMovements(tenantId: string, branchId: string): Promise
 }
 
 // ---------- Notifications ----------
-export async function listNotifications(tenantId: string): Promise<Notification[]> {
-  await latency(60, 150);
-  return tenantDb(tenantId).notifications.slice(0, 20);
+export async function listNotifications(
+  tenantId: string,
+  query?: { unreadOnly?: boolean; type?: string; branchId?: string; limit?: number }
+): Promise<Notification[]> {
+  try {
+    const params = new URLSearchParams();
+    if (query?.unreadOnly) params.append("unreadOnly", "true");
+    if (query?.type) params.append("type", query.type);
+    if (query?.branchId) params.append("branchId", query.branchId);
+    if (query?.limit) params.append("limit", String(query.limit));
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    const res = await backendFetch<{ success: boolean; data: Notification[] }>(
+      `/tenants/${tenantId}/notifications${queryString}`
+    );
+    if (res?.data && Array.isArray(res.data)) {
+      return res.data;
+    }
+  } catch {
+    // fallback to local mock store
+  }
+  return tenantDb(tenantId).notifications.slice(0, 50);
 }
 
-export async function markNotificationsRead(tenantId: string): Promise<{ ok: true }> {
-  await latency(60, 120);
-  tenantDb(tenantId).notifications.forEach((n) => (n.read = true));
+export async function markNotificationsRead(tenantId: string, notificationId?: string): Promise<{ ok: true }> {
+  try {
+    if (notificationId) {
+      await backendFetch(`/tenants/${tenantId}/notifications/${notificationId}/read`, {
+        method: "PATCH",
+      });
+    } else {
+      await backendFetch(`/tenants/${tenantId}/notifications/mark-all-read`, {
+        method: "POST",
+      });
+    }
+  } catch {
+    // fallback to local mock store
+  }
+  tenantDb(tenantId).notifications.forEach((n) => {
+    if (!notificationId || n.id === notificationId) {
+      n.read = true;
+    }
+  });
   commit(tenantId);
   return { ok: true };
+}
+
+export async function markSingleNotificationRead(tenantId: string, notificationId: string): Promise<{ ok: true }> {
+  return markNotificationsRead(tenantId, notificationId);
+}
+
+export async function deleteNotification(tenantId: string, notificationId: string): Promise<{ ok: true }> {
+  try {
+    await backendFetch(`/tenants/${tenantId}/notifications/${notificationId}`, {
+      method: "DELETE",
+    });
+  } catch {
+    // fallback to local mock store
+  }
+  const db = tenantDb(tenantId);
+  db.notifications = db.notifications.filter((n) => n.id !== notificationId);
+  commit(tenantId);
+  return { ok: true };
+}
+
+export async function createNotification(
+  tenantId: string,
+  data: {
+    type: NotificationType;
+    title: string;
+    body: string;
+    branchId?: string;
+    link?: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<Notification> {
+  try {
+    const res = await backendFetch<{ success: boolean; data: Notification }>(
+      `/tenants/${tenantId}/notifications`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+    if (res?.data) {
+      return res.data;
+    }
+  } catch {
+    // fallback to local store
+  }
+  const notif: Notification = {
+    id: uid("n"),
+    tenantId,
+    branchId: data.branchId,
+    type: data.type,
+    title: data.title,
+    body: data.body,
+    read: false,
+    link: data.link,
+    metadata: data.metadata,
+    createdAt: new Date().toISOString(),
+  };
+  tenantDb(tenantId).notifications.unshift(notif);
+  commit(tenantId);
+  return notif;
 }
 
 // ---------- Dashboard ----------

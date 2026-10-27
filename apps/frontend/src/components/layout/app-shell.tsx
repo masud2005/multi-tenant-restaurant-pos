@@ -14,6 +14,7 @@ import {
   Search,
   Sun,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { RestaurantThemeModal } from "@/features/theme/restaurant-theme-modal";
@@ -25,6 +26,7 @@ import { setColorMode, toggleSidebar } from "@/features/ui/ui.slice";
 import { setBranch } from "@/features/tenant/tenant.slice";
 import { useSignOut } from "@/features/auth/require-session";
 import { useMarkNotificationsReadMutation, useNotificationsQuery } from "@/app/api";
+import { useRealtimeNotifications } from "@/features/notifications/use-realtime-notifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -124,26 +126,68 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 
 function Notifications() {
   const { tenant } = useTenant();
-  const { data = [] } = useNotificationsQuery(tenant.id);
+  useRealtimeNotifications(tenant.id);
+  const { data = [] } = useNotificationsQuery(tenant.id, {
+    pollingInterval: 30000,
+    refetchOnFocus: true,
+  });
   const [markRead] = useMarkNotificationsReadMutation();
+  const [open, setOpen] = useState(false);
   const unread = data.filter((n) => !n.read).length;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen && unread > 0) {
+      markRead(tenant.id);
+    }
+  };
+
+  const handleItemClick = (n: (typeof data)[number]) => {
+    setOpen(false);
+  };
+
   return (
-    <Popover onOpenChange={(o) => !o && unread && markRead(tenant.id)}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`} className="relative">
           <Bell className="size-4" />
-          {unread > 0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />}
+          {unread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground leading-none">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <p className="border-b px-4 py-2.5 text-sm font-semibold">Notifications</p>
+      <PopoverContent align="end" className="w-80 p-0 shadow-lg">
+        <div className="flex items-center justify-between border-b px-4 py-2.5">
+          <span className="text-sm font-semibold">Notifications</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(false)}
+            className="size-6 text-muted-foreground hover:text-foreground -mr-1 rounded-sm"
+            aria-label="Close"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
         <ul className="max-h-80 divide-y overflow-y-auto">
           {data.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted-foreground">You're all caught up.</li>}
           {data.map((n) => (
-            <li key={n.id} className={cn("px-4 py-3 text-sm", !n.read && "bg-primary-soft")}>
-              <p className="font-medium">{n.title}</p>
-              <p className="text-muted-foreground">{n.body}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}</p>
+            <li
+              key={n.id}
+              onClick={() => handleItemClick(n)}
+              className={cn(
+                "px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-muted/50",
+                !n.read && "bg-primary-soft/60"
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-foreground">{n.title}</p>
+                {!n.read && <span className="size-1.5 rounded-full bg-primary shrink-0" />}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground/80">{formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}</p>
             </li>
           ))}
         </ul>
@@ -151,6 +195,7 @@ function Notifications() {
           <Link
             to="/app/$tenantSlug/notifications"
             params={{ tenantSlug: tenant.slug }}
+            onClick={() => setOpen(false)}
             className="text-xs font-medium text-primary hover:underline"
           >
             View all notifications &rarr;

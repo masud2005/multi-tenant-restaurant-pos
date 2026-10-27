@@ -22,7 +22,7 @@ export const RATE_LIMIT = {
   LOGIN: {
     name: 'login',
     ttl: 15 * 60_000,
-    limit: 5,
+    limit: process.env.NODE_ENV === 'production' ? 5 : 500,
   },
   OTP: {
     name: 'otp',
