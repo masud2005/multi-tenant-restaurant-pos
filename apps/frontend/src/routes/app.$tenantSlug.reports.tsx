@@ -183,54 +183,139 @@ function ReportsPage() {
             </div>
           ) : sales.data ? (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-                    <DollarSign className="size-4 text-primary" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{money(sales.data.totalRevenue)}</div>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <ArrowUpRight className="size-3 text-emerald-500" />
-                      <span>+12.5% from previous period</span>
-                    </p>
-                  </CardContent>
-                </Card>
+              {(() => {
+                const m = sales.data.metrics;
+                return (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Card 1: Total Revenue */}
+                    <Card className="border-border/80 shadow-sm hover:shadow transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+                        <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <DollarSign className="size-4 text-primary" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold font-mono tracking-tight">{money(sales.data.totalRevenue)}</div>
+                        <div className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          {m?.revenueGrowth !== undefined ? (
+                            m.revenueGrowth > 0 ? (
+                              <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-semibold font-mono">
+                                <ArrowUpRight className="size-3.5" />
+                                +{m.revenueGrowth}%
+                              </span>
+                            ) : m.revenueGrowth < 0 ? (
+                              <span className="inline-flex items-center gap-0.5 text-rose-600 dark:text-rose-400 font-semibold font-mono">
+                                <ArrowDownRight className="size-3.5" />
+                                {m.revenueGrowth}%
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground font-mono font-medium">0.0%</span>
+                            )
+                          ) : null}
+                          <span>{m?.prevPeriodLabel ?? "vs previous period"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Net Sales</CardTitle>
-                    <TrendingUp className="size-4 text-emerald-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{money(sales.data.netSales)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">After item discounts</p>
-                  </CardContent>
-                </Card>
+                    {/* Card 2: Net Sales */}
+                    <Card className="border-border/80 shadow-sm hover:shadow transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Net Sales</CardTitle>
+                        <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                          <TrendingUp className="size-4 text-emerald-500" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold font-mono tracking-tight">{money(sales.data.netSales)}</div>
+                        <div className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between gap-1">
+                          {m?.totalDiscounts && m.totalDiscounts > 0 ? (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">
+                              -{money(m.totalDiscounts)} discounts applied
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">No discounts applied</span>
+                          )}
+                          {m?.grossSales ? (
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              Gross: {money(m.grossSales)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
-                    <ShoppingCart className="size-4 text-blue-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{sales.data.totalOrders}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Completed orders</p>
-                  </CardContent>
-                </Card>
+                    {/* Card 3: Total Orders */}
+                    <Card className="border-border/80 shadow-sm hover:shadow transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+                        <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                          <ShoppingCart className="size-4 text-blue-500" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold font-mono tracking-tight">{sales.data.totalOrders}</div>
+                        <div className="text-xs text-muted-foreground mt-1.5 flex items-center justify-between gap-1 flex-wrap">
+                          <span>
+                            {m?.completedOrders ?? sales.data.totalOrders} completed
+                            {m?.activeOrders ? `, ${m.activeOrders} active` : ""}
+                          </span>
+                          {range !== "today" && m?.ordersAvgPerDay ? (
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              ~{m.ordersAvgPerDay}/day
+                            </span>
+                          ) : m?.ordersGrowth !== undefined ? (
+                            <span
+                              className={`text-[11px] font-mono font-semibold ${
+                                m.ordersGrowth >= 0
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-rose-600 dark:text-rose-400"
+                              }`}
+                            >
+                              {m.ordersGrowth >= 0 ? `+${m.ordersGrowth}%` : `${m.ordersGrowth}%`}
+                            </span>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Average Order Value</CardTitle>
-                    <Receipt className="size-4 text-purple-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{money(sales.data.avgOrderValue)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Avg spend per guest</p>
-                  </CardContent>
-                </Card>
-              </div>
+                    {/* Card 4: Average Order Value */}
+                    <Card className="border-border/80 shadow-sm hover:shadow transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Average Order Value</CardTitle>
+                        <div className="size-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                          <Receipt className="size-4 text-purple-500" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold font-mono tracking-tight">{money(sales.data.avgOrderValue)}</div>
+                        <div className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          {m?.aovGrowth !== undefined ? (
+                            <>
+                              {m.aovGrowth > 0 ? (
+                                <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-semibold font-mono">
+                                  <ArrowUpRight className="size-3.5" />
+                                  +{m.aovGrowth}%
+                                </span>
+                              ) : m.aovGrowth < 0 ? (
+                                <span className="inline-flex items-center gap-0.5 text-rose-600 dark:text-rose-400 font-semibold font-mono">
+                                  <ArrowDownRight className="size-3.5" />
+                                  {m.aovGrowth}%
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground font-mono font-medium">0.0%</span>
+                              )}
+                              <span>{m.prevPeriodLabel}</span>
+                            </>
+                          ) : (
+                            <span>Avg spend per guest order</span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })()}
 
               {/* Charts */}
               <div className="grid gap-6 lg:grid-cols-7">
@@ -609,42 +694,120 @@ function ReportsPage() {
                 <Card className="border-border/80 shadow-sm flex flex-col justify-between">
                   <CardHeader className="flex flex-row items-center justify-between pb-3">
                     <div>
-                      <CardTitle className="text-base font-semibold">Sales by Menu Category</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-semibold">Sales by Menu Category</CardTitle>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold tracking-wide uppercase">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Live Categories
+                        </span>
+                      </div>
                       <CardDescription className="text-xs mt-0.5">
-                        Category contribution to food revenue
+                        {range === "today"
+                          ? "Today's category contribution to food revenue"
+                          : `Category revenue breakdown (${range === "30d" ? "last 30 days" : "last 7 days"})`}
                       </CardDescription>
                     </div>
+                    {sales.data.salesByCategory.length > 0 && (
+                      <span className="text-xs font-medium text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full font-mono">
+                        {sales.data.salesByCategory.length} categories
+                      </span>
+                    )}
                   </CardHeader>
-                  <CardContent>
-                    <div className="h-[220px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={sales.data.salesByCategory}
-                            dataKey="revenue"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            label={({ name }) => name}
-                          >
-                            {sales.data.salesByCategory.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              background: "var(--popover)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              color: "var(--foreground)",
-                            }}
-                            formatter={(val: any) => [money(Number(val)), "Revenue"]}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
+                  <CardContent className="space-y-4">
+                    {sales.data.salesByCategory.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <p className="text-sm">No category sales recorded for this period yet.</p>
+                        <p className="text-xs mt-1 text-muted-foreground/70">
+                          New orders placed in the POS will appear here live in real time.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="h-[180px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={sales.data.salesByCategory}
+                                dataKey="revenue"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={78}
+                                paddingAngle={3}
+                                stroke="var(--background)"
+                                strokeWidth={2}
+                              >
+                                {sales.data.salesByCategory.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                content={({ active, payload }) => {
+                                  if (!active || !payload || !payload.length) return null;
+                                  const d = payload[0].payload;
+                                  return (
+                                    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-xs space-y-1.5 min-w-[170px]">
+                                      <p className="font-semibold text-foreground border-b border-border/50 pb-1">
+                                        {d.name}
+                                      </p>
+                                      <div className="flex items-center justify-between text-muted-foreground">
+                                        <span>Revenue:</span>
+                                        <span className="font-bold text-foreground font-mono">{money(d.revenue)}</span>
+                                      </div>
+                                      {d.percentage !== undefined && (
+                                        <div className="flex items-center justify-between text-muted-foreground">
+                                          <span>Share:</span>
+                                          <span className="font-bold text-foreground font-mono">{d.percentage}%</span>
+                                        </div>
+                                      )}
+                                      {d.qty !== undefined && d.qty > 0 && (
+                                        <div className="flex items-center justify-between text-muted-foreground">
+                                          <span>Dishes Sold:</span>
+                                          <span className="font-bold text-foreground font-mono">{d.qty} units</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        {/* Category Breakdown Rows */}
+                        <div className="space-y-2 pt-2 border-t border-border/40">
+                          {sales.data.salesByCategory.map((cat, idx) => {
+                            const color = PIE_COLORS[idx % PIE_COLORS.length];
+                            const pct = cat.percentage ?? 0;
+                            return (
+                              <div key={cat.categoryId} className="flex items-center justify-between text-xs py-0.5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                  <span className="font-medium text-foreground truncate max-w-[180px]" title={cat.name}>
+                                    {cat.name}
+                                  </span>
+                                  {cat.qty ? (
+                                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                      ({cat.qty})
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0 font-mono">
+                                  <span className="font-bold text-foreground">{money(cat.revenue)}</span>
+                                  <span className="text-[11px] text-muted-foreground w-8 text-right font-semibold">
+                                    {pct}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>

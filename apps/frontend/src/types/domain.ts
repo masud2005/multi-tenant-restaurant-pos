@@ -611,6 +611,19 @@ export interface SalesReport {
   netSales: number;
   totalOrders: number;
   avgOrderValue: number;
+  metrics?: {
+    revenueGrowth?: number;
+    revenuePrevPeriod?: number;
+    prevPeriodLabel?: string;
+    grossSales?: number;
+    totalDiscounts?: number;
+    completedOrders?: number;
+    activeOrders?: number;
+    ordersGrowth?: number;
+    ordersAvgPerDay?: number;
+    aovGrowth?: number;
+    prevAov?: number;
+  };
   hourlySales: {
     hour: string;
     sales: number;
@@ -629,7 +642,13 @@ export interface SalesReport {
     percentage?: number;
     avgPrice?: number;
   }[];
-  salesByCategory: { categoryId: string; name: string; revenue: number }[];
+  salesByCategory: {
+    categoryId: string;
+    name: string;
+    revenue: number;
+    percentage?: number;
+    qty?: number;
+  }[];
 }
 
 export interface FinancialReport {
