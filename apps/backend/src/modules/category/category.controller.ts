@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -20,6 +21,8 @@ import {
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { MoveCategoryDto } from './dto/move-category.dto';
+import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 import { ResponseHelper } from '../../common/helpers/response.helper';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -164,6 +167,75 @@ export class CategoryController {
       dto,
     );
     return ResponseHelper.success(category, 'Category updated successfully');
+  }
+
+  @Patch(':tenantSlug/categories/reorder')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MENU_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reorder categories by list of IDs',
+    description: 'Updates sort position of categories to match the order of IDs provided.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug or ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Categories reordered successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Restaurant not found' })
+  async reorderCategories(
+    @Param('tenantSlug') tenantSlug: string,
+    @Body() dto: ReorderCategoriesDto,
+  ) {
+    const categories = await this.categoryService.reorderCategories(
+      tenantSlug,
+      dto.categoryIds,
+    );
+    return ResponseHelper.success(categories, 'Categories reordered successfully');
+  }
+
+  @Patch(':tenantSlug/categories/:categoryId/move')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.MENU_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Move category up or down in display order',
+    description: 'Swaps sort position of a category with its adjacent neighbor (-1 for up, 1 for down).',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug or ID',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    example: 'uuid',
+    description: 'Category ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Category order updated successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Category or restaurant not found' })
+  async moveCategory(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('categoryId') categoryId: string,
+    @Body() dto: MoveCategoryDto,
+  ) {
+    const categories = await this.categoryService.moveCategory(
+      tenantSlug,
+      categoryId,
+      dto.dir,
+    );
+    return ResponseHelper.success(categories, 'Category order updated successfully');
   }
 
   @Delete(':tenantSlug/categories/:categoryId')

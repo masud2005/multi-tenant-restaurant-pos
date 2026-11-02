@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, isToday } from "date-fns";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { RequirePermission } from "@/features/tenant/require-permission";
 import { useTenant } from "@/features/tenant/tenant-context";
 import { useTablesQuery } from "@/app/api";
@@ -10,6 +10,8 @@ import {
   useReservationsQuery,
   useSaveReservationMutation,
   useSetReservationStatusMutation,
+  useReservationSettingsQuery,
+  useUpdateReservationSettingsMutation,
 } from "@/features/people/api";
 import { withToast } from "@/features/tenant/use-mutation-toast";
 import { Confirm, DataTable, td } from "@/components/common/confirm";
@@ -42,17 +44,33 @@ export const RES_STATUS: Record<ReservationStatus, { label: string; variant: "mu
 };
 
 function Reservations() {
-  const { tenant, branch } = useTenant();
+  const { tenant, branch, can } = useTenant();
   const list = useReservationsQuery({ tenantId: tenant.id, branchId: branch.id });
   const [setStatus] = useSetReservationStatusMutation();
   const [deleteReservation] = useDeleteReservationMutation();
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<Reservation | "new" | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const rows = (list.data ?? []).filter((r) => showAll || r.status === "booked" || r.status === "seated");
   const act = (r: Reservation, status: ReservationStatus, msg: string) => withToast(setStatus({ tenantId: tenant.id, id: r.id, status }), msg);
   return (
     <div>
-      <PageHeader title="Reservations" description={`Bookings for ${branch.name}.`} actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New reservation</Button>} />
+      <PageHeader
+        title="Reservations"
+        description={`Bookings for ${branch.name}.`}
+        actions={
+          <div className="flex items-center gap-2">
+            {can("settings.manage") && (
+              <Button variant="outline" onClick={() => setShowSettings(true)}>
+                <Settings2 className="size-4" /> Rules & Policy
+              </Button>
+            )}
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="size-4" /> New reservation
+            </Button>
+          </div>
+        }
+      />
       <label className="mb-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show completed, cancelled and no-shows</label>
       {list.isLoading && <Skeleton className="h-48" />}
       {list.isError && <ErrorState message="Couldn't load reservations." onRetry={list.refetch} />}
@@ -93,6 +111,7 @@ function Reservations() {
         </DataTable>
       )}
       {editing && <ReservationDialog res={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {showSettings && <ReservationSettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
@@ -175,6 +194,110 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
             </div>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function ReservationSettingsDialog({ onClose }: { onClose: () => void }) {
+  const { tenant } = useTenant();
+  const settingsQuery = useReservationSettingsQuery(tenant.id);
+  const [updateSettings, { isLoading }] = useUpdateReservationSettingsMutation();
+
+  const [form, setForm] = useState({
+    defaultDurationMin: "90",
+    bufferTimeMin: "30",
+    earlyArrivalWindowMin: "15",
+    noShowGracePeriodMin: "15",
+    minPartySize: "1",
+    maxPartySize: "20",
+    maxAdvanceDays: "30",
+    minAdvanceHours: "2",
+  });
+
+  useEffect(() => {
+    if (settingsQuery.data) {
+      setForm({
+        defaultDurationMin: String(settingsQuery.data.defaultDurationMin ?? 90),
+        bufferTimeMin: String(settingsQuery.data.bufferTimeMin ?? 30),
+        earlyArrivalWindowMin: String(settingsQuery.data.earlyArrivalWindowMin ?? 15),
+        noShowGracePeriodMin: String(settingsQuery.data.noShowGracePeriodMin ?? 15),
+        minPartySize: String(settingsQuery.data.minPartySize ?? 1),
+        maxPartySize: String(settingsQuery.data.maxPartySize ?? 20),
+        maxAdvanceDays: String(settingsQuery.data.maxAdvanceDays ?? 30),
+        minAdvanceHours: String(settingsQuery.data.minAdvanceHours ?? 2),
+      });
+    }
+  }, [settingsQuery.data]);
+
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings2 className="size-4" /> Reservation Rules & Settings
+          </DialogTitle>
+        </DialogHeader>
+        {settingsQuery.isLoading ? (
+          <Skeleton className="h-48" />
+        ) : (
+          <form
+            className="grid grid-cols-2 gap-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const ok = await withToast(
+                updateSettings({
+                  tenantId: tenant.id,
+                  defaultDurationMin: num(form.defaultDurationMin) || 90,
+                  bufferTimeMin: num(form.bufferTimeMin) || 30,
+                  earlyArrivalWindowMin: num(form.earlyArrivalWindowMin) || 15,
+                  noShowGracePeriodMin: num(form.noShowGracePeriodMin) || 15,
+                  minPartySize: num(form.minPartySize) || 1,
+                  maxPartySize: num(form.maxPartySize) || 20,
+                  maxAdvanceDays: num(form.maxAdvanceDays) || 30,
+                  minAdvanceHours: num(form.minAdvanceHours) || 2,
+                }),
+                "Reservation rules saved"
+              );
+              if (ok) onClose();
+            }}
+          >
+            <Field label="Dining duration (min)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.defaultDurationMin} onChange={set("defaultDurationMin")} required />}
+            </Field>
+            <Field label="Buffer time (min)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.bufferTimeMin} onChange={set("bufferTimeMin")} required />}
+            </Field>
+            <Field label="Early arrival (min)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.earlyArrivalWindowMin} onChange={set("earlyArrivalWindowMin")} required />}
+            </Field>
+            <Field label="No-show grace (min)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.noShowGracePeriodMin} onChange={set("noShowGracePeriodMin")} required />}
+            </Field>
+            <Field label="Min party size">
+              {(id) => <Input id={id} inputMode="numeric" value={form.minPartySize} onChange={set("minPartySize")} required />}
+            </Field>
+            <Field label="Max party size">
+              {(id) => <Input id={id} inputMode="numeric" value={form.maxPartySize} onChange={set("maxPartySize")} required />}
+            </Field>
+            <Field label="Max advance (days)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.maxAdvanceDays} onChange={set("maxAdvanceDays")} required />}
+            </Field>
+            <Field label="Min advance (hours)">
+              {(id) => <Input id={id} inputMode="numeric" value={form.minAdvanceHours} onChange={set("minAdvanceHours")} required />}
+            </Field>
+            <DialogFooter className="col-span-2 mt-2 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && <Loader2 className="size-4 animate-spin" />} Save settings
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

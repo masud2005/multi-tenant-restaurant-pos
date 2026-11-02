@@ -194,10 +194,53 @@ export interface AdjustmentInput {
 }
 
 export async function adjustStock(tenantId: string, input: AdjustmentInput): Promise<Ingredient> {
+  if (!(input.qty > 0)) throw new ApiError(422, "Enter a quantity greater than zero.");
+
+  try {
+    const result = await backendFetch<any>(`/tenants/${tenantId}/inventory/adjust`, {
+      method: "POST",
+      body: JSON.stringify({
+        branchId: input.branchId,
+        ingredientId: input.ingredientId,
+        direction: input.direction,
+        reason: input.reason,
+        qty: input.qty,
+        quantity: input.qty,
+        note: input.note,
+        notes: input.note,
+      }),
+    });
+
+    if (result && result.id) {
+      const db = tenantDb(tenantId);
+      const ing = db.ingredients.find((i) => i.id === input.ingredientId && i.branchId === input.branchId);
+      if (ing) {
+        ing.stock = typeof result.stock === "number" ? result.stock : ing.stock;
+      }
+      commit(tenantId);
+      return {
+        id: result.id,
+        tenantId: result.tenantId || tenantId,
+        branchId: result.branchId || input.branchId,
+        key: result.key || (ing ? ing.key : ""),
+        name: result.name || (ing ? ing.name : ""),
+        unit: result.unit || (ing ? ing.unit : ""),
+        stock: result.stock ?? 0,
+        reorderLevel: result.reorderLevel ?? (ing ? ing.reorderLevel : 0),
+        unitCost: result.unitCost ?? (ing ? ing.unitCost : 0),
+      };
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for adjusting stock, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   const db = tenantDb(tenantId);
   const ing = findIng(db, input.branchId, input.ingredientId);
-  if (!(input.qty > 0)) throw new ApiError(422, "Enter a quantity greater than zero.");
   const signed = input.direction === "add" && input.reason !== "waste" ? input.qty : -input.qty;
   if (ing.stock + signed < 0) throw new ApiError(422, `Only ${ing.stock} ${ing.unit} on hand.`);
   applyMovement(db, ing, signed, input.reason, input.note.trim() || (input.reason === "waste" ? "Waste" : "Manual adjustment"));
@@ -206,6 +249,35 @@ export async function adjustStock(tenantId: string, input: AdjustmentInput): Pro
 }
 
 export async function listStockCounts(tenantId: string, branchId: string): Promise<StockCount[]> {
+  try {
+    const res = await backendFetch<any[]>(`/tenants/${tenantId}/inventory/stock-counts?branchId=${branchId}`);
+    if (Array.isArray(res)) {
+      return res.map((c) => ({
+        id: c.id,
+        tenantId: c.tenantId || tenantId,
+        branchId: c.branchId || branchId,
+        number: c.number || c.id,
+        notes: c.notes || "",
+        createdBy: c.createdBy || "Staff",
+        createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+        lines: (c.lines || []).map((l: any) => ({
+          ingredientId: l.ingredientId,
+          name: l.name || l.ingredient?.name || "",
+          unit: l.unit || l.ingredient?.unit || "",
+          expected: Number(l.expected || 0),
+          counted: Number(l.counted || 0),
+          variance: Number(l.variance || 0),
+        })),
+      }));
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for stock counts, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).stockCounts.filter((c) => c.branchId === branchId);
 }
@@ -214,10 +286,63 @@ export async function submitStockCount(
   tenantId: string,
   input: { branchId: string; counts: { ingredientId: string; counted: number }[]; notes: string; createdBy: string },
 ): Promise<StockCount> {
-  await latency(300, 600);
-  const db = tenantDb(tenantId);
   if (!input.counts.length) throw new ApiError(422, "Count at least one ingredient.");
   if (input.counts.some((c) => !Number.isFinite(c.counted) || c.counted < 0)) throw new ApiError(422, "Counts must be zero or more.");
+
+  try {
+    const res = await backendFetch<any>(`/tenants/${tenantId}/inventory/stock-counts`, {
+      method: "POST",
+      body: JSON.stringify({
+        branchId: input.branchId,
+        notes: input.notes.trim(),
+        createdBy: input.createdBy,
+        counts: input.counts.map((c) => ({
+          ingredientId: c.ingredientId,
+          counted: c.counted,
+        })),
+      }),
+    });
+
+    if (res && res.id) {
+      const formatted: StockCount = {
+        id: res.id,
+        tenantId: res.tenantId || tenantId,
+        branchId: res.branchId || input.branchId,
+        number: res.number || res.id,
+        notes: res.notes || "",
+        createdBy: res.createdBy || input.createdBy,
+        createdAt: res.createdAt ? new Date(res.createdAt).toISOString() : new Date().toISOString(),
+        lines: (res.lines || []).map((l: any) => ({
+          ingredientId: l.ingredientId,
+          name: l.name || l.ingredient?.name || "",
+          unit: l.unit || l.ingredient?.unit || "",
+          expected: Number(l.expected || 0),
+          counted: Number(l.counted || 0),
+          variance: Number(l.variance || 0),
+        })),
+      };
+
+      const db = tenantDb(tenantId);
+      db.stockCounts.unshift(formatted);
+      for (const line of formatted.lines) {
+        const localIng = db.ingredients.find((i) => i.id === line.ingredientId && i.branchId === input.branchId);
+        if (localIng) {
+          localIng.stock = line.counted;
+        }
+      }
+      commit(tenantId);
+      return formatted;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for submitting stock count, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
+  await latency(300, 600);
+  const db = tenantDb(tenantId);
   db.docSeq += 1;
   const number = `SC-${db.docSeq}`;
   const lines = input.counts.map((c) => {

@@ -5,3 +5,4 @@ export * from './create-order-payment.dto';
 export * from './create-order.dto';
 export * from './get-orders-query.dto';
 export * from './update-kitchen-status.dto';
+export * from './update-order-delivery.dto';

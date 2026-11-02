@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import {
   deleteCustomRole,
   getCustomRoles,
+  getCustomRolesSync,
   getTenantRolesApi,
   saveCustomRole,
   updateCustomRolePermissions,
@@ -196,8 +197,8 @@ function Roles() {
   useEffect(() => {
     let mounted = true;
 
-    // Load custom roles
-    const loadedCustom = getCustomRoles(tenant.slug);
+    // Load custom roles from cache immediately, then sync from backend
+    const loadedCustom = getCustomRolesSync(tenant.slug);
     if (mounted) {
       setCustomRoles(loadedCustom);
       const cMap: Record<string, Permission[]> = {};
@@ -207,6 +208,21 @@ function Roles() {
       setCustomPermissionsMap(cMap);
       setInitialCustomMap(cMap);
     }
+
+    getCustomRoles(tenant.slug)
+      .then((backendCustom) => {
+        if (!mounted) return;
+        setCustomRoles(backendCustom);
+        const freshMap: Record<string, Permission[]> = {};
+        for (const cr of backendCustom) {
+          freshMap[cr.id] = (cr.permissions || []) as Permission[];
+        }
+        setCustomPermissionsMap(freshMap);
+        setInitialCustomMap(freshMap);
+      })
+      .catch((err) => {
+        console.error("Could not fetch custom roles from backend", err);
+      });
 
     getTenantRolesApi(tenant.slug)
       .then((data) => {
@@ -337,7 +353,7 @@ function Roles() {
   };
 
   // Create custom role
-  const handleCreateRoleSubmit = (e: React.FormEvent) => {
+  const handleCreateRoleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newRoleForm.name.trim();
     if (!name) {
@@ -358,40 +374,48 @@ function Roles() {
         ? []
         : [...(permissionsMap[templateBase] || ROLE_PERMISSIONS[templateBase] || [])];
 
-    const created = saveCustomRole(tenant.slug, {
-      name,
-      description: newRoleForm.description.trim(),
-      color: newRoleForm.color,
-      baseRole: templateBase,
-      permissions: initialPerms,
-    });
+    try {
+      const created = await saveCustomRole(tenant.slug, {
+        name,
+        description: newRoleForm.description.trim(),
+        color: newRoleForm.color,
+        baseRole: templateBase,
+        permissions: initialPerms,
+      });
 
-    const updatedRoles = [...customRoles, created];
-    setCustomRoles(updatedRoles);
-    setCustomPermissionsMap((prev) => ({ ...prev, [created.id]: initialPerms }));
-    setInitialCustomMap((prev) => ({ ...prev, [created.id]: initialPerms }));
+      const updatedRoles = [...customRoles, created];
+      setCustomRoles(updatedRoles);
+      setCustomPermissionsMap((prev) => ({ ...prev, [created.id]: initialPerms }));
+      setInitialCustomMap((prev) => ({ ...prev, [created.id]: initialPerms }));
 
-    setIsCreatingRole(false);
-    setNewRoleForm({ name: "", description: "", baseRole: "cashier", color: "purple" });
-    toast.success(`Custom role "${created.name}" created! You can now customize its permissions.`);
+      setIsCreatingRole(false);
+      setNewRoleForm({ name: "", description: "", baseRole: "cashier", color: "purple" });
+      toast.success(`Custom role "${created.name}" created! You can now customize its permissions.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to create custom role.");
+    }
   };
 
   // Delete custom role
-  const handleDeleteRole = (role: CustomRole) => {
-    deleteCustomRole(tenant.slug, role.id);
-    setCustomRoles((prev) => prev.filter((r) => r.id !== role.id));
-    setCustomPermissionsMap((prev) => {
-      const next = { ...prev };
-      delete next[role.id];
-      return next;
-    });
-    setInitialCustomMap((prev) => {
-      const next = { ...prev };
-      delete next[role.id];
-      return next;
-    });
-    if (selectedRole === role.id) setSelectedRole("all");
-    toast.success(`Custom role "${role.name}" removed.`);
+  const handleDeleteRole = async (role: CustomRole) => {
+    try {
+      await deleteCustomRole(tenant.slug, role.id);
+      setCustomRoles((prev) => prev.filter((r) => r.id !== role.id));
+      setCustomPermissionsMap((prev) => {
+        const next = { ...prev };
+        delete next[role.id];
+        return next;
+      });
+      setInitialCustomMap((prev) => {
+        const next = { ...prev };
+        delete next[role.id];
+        return next;
+      });
+      if (selectedRole === role.id) setSelectedRole("all");
+      toast.success(`Custom role "${role.name}" removed.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove custom role.");
+    }
   };
 
   const filteredGroups = useMemo(() => {

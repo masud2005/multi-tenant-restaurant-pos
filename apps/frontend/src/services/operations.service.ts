@@ -242,14 +242,15 @@ export function mapBackendOrderToDomain(raw: any): Order {
     refunds: (raw.refunds || []).map((r: any) => ({
       id: r.id,
       amount: Number(r.amount) || 0,
+      method: (r.method?.toLowerCase() as PaymentMethod) || "cash",
       reason: r.reason || "",
       at: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
-      by: r.createdBy || "",
+      by: r.by || r.createdBy || "",
     })),
     refunded: Number(raw.refunded) || 0,
-    delivery: raw.deliveryAddress
+    delivery: (raw.type === "DELIVERY" || raw.type === "delivery" || raw.deliveryAddress != null)
       ? {
-          address: raw.deliveryAddress,
+          address: raw.deliveryAddress || "",
           riderId: raw.riderId || null,
           riderName: raw.riderName || null,
           status: (raw.deliveryStatus?.toLowerCase() as any) || "pending",
@@ -725,12 +726,46 @@ export async function addPayment(tenantId: string, orderId: string, input: Payme
 }
 
 export async function cancelOrder(tenantId: string, orderId: string, reason: string): Promise<Order> {
+  const trimmedReason = reason?.trim() || "Voided by user";
+
+  try {
+    const res = await backendFetch<any>(`/tenants/${tenantId}/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason: trimmedReason }),
+    });
+
+    const orderData = res?.order || res;
+    if (orderData && orderData.id) {
+      const mapped = mapBackendOrderToDomain(orderData);
+      const db = tenantDb(tenantId);
+      const idx = db.orders.findIndex((x) => x.id === mapped.id);
+      if (idx >= 0) db.orders[idx] = mapped;
+      else db.orders.push(mapped);
+
+      if (mapped.tableId) {
+        const t = db.tables.find((x) => x.id === mapped.tableId);
+        if (t && (t.currentOrderId === mapped.id || t.status === "occupied")) {
+          t.status = "available";
+          t.currentOrderId = null;
+        }
+      }
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for cancelling order, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   const order = findOrder(tenantId, orderId);
   if (order.status === "completed") throw new ApiError(409, "Completed orders cannot be voided.");
   if (round2(order.paid - order.refunded) > 0) throw new ApiError(409, "Refund all payments before voiding.");
   order.status = "cancelled";
-  order.notes = [order.notes, `Voided: ${reason}`].filter(Boolean).join("\n");
+  order.notes = [order.notes, `Voided: ${trimmedReason}`].filter(Boolean).join("\n");
   const db = tenantDb(tenantId);
   if (order.tableId) {
     const t = db.tables.find((x) => x.id === order.tableId);
@@ -1141,6 +1176,30 @@ export async function listIngredients(tenantId: string, branchId: string): Promi
 }
 
 export async function listMovements(tenantId: string, branchId: string): Promise<StockMovement[]> {
+  try {
+    const res = await backendFetch<any[]>(`/tenants/${tenantId}/stock-movements?branchId=${branchId}&limit=100`);
+    if (Array.isArray(res)) {
+      return res.map((m) => ({
+        id: m.id,
+        tenantId: m.tenantId || tenantId,
+        branchId: m.branchId || branchId,
+        ingredientId: m.ingredientId,
+        ingredientName: m.ingredientName || m.ingredient?.name || "Unknown",
+        qty: Number(m.qty ?? m.quantity ?? 0),
+        unit: m.unit || m.ingredient?.unit || "",
+        reason: (m.reason || "adjustment").toLowerCase() as any,
+        reference: m.reference || m.notes || "",
+        createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+      }));
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for stock movements, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency();
   return tenantDb(tenantId).movements.filter((m) => m.branchId === branchId).slice(0, 100);
 }
@@ -1269,6 +1328,39 @@ export interface DashboardSummary {
 }
 
 export async function getDashboard(tenantId: string, branchId: string): Promise<DashboardSummary> {
+  try {
+    const params = new URLSearchParams();
+    if (branchId) params.append("branchId", branchId);
+    const queryStr = params.toString() ? `?${params.toString()}` : "";
+    const backendData = await backendFetch<any>(`/tenants/${tenantId}/dashboard/summary${queryStr}`);
+    if (backendData && typeof backendData.todaySales === "number") {
+      return {
+        todaySales: Number(backendData.todaySales) || 0,
+        todayOrders: Number(backendData.todayOrders) || 0,
+        avgTicket: Number(backendData.avgTicket) || 0,
+        activeOrders: Number(backendData.activeOrders) || 0,
+        kitchenQueue: Number(backendData.kitchenQueue) || 0,
+        occupiedTables: Number(backendData.occupiedTables) || 0,
+        totalTables: Number(backendData.totalTables) || 0,
+        salesByDay: Array.isArray(backendData.salesByDay) ? backendData.salesByDay : [],
+        topItems: Array.isArray(backendData.topItems) ? backendData.topItems : [],
+        lowStock: Array.isArray(backendData.lowStock)
+          ? backendData.lowStock.map((i: any) => ({
+              ...i,
+              stock: i.stock ?? i.currentStock ?? 0,
+            }))
+          : [],
+        recentOrders: Array.isArray(backendData.recentOrders)
+          ? backendData.recentOrders.map(mapBackendOrderToDomain)
+          : [],
+      };
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch dashboard summary from backend, falling back to local calculation:", err);
+    }
+  }
+
   await latency(200, 400);
   const db = tenantDb(tenantId);
   const orders = db.orders.filter((o) => o.branchId === branchId && o.status !== "cancelled");

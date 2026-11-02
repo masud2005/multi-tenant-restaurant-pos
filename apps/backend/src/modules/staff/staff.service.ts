@@ -119,12 +119,40 @@ export class StaffService {
       inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
 
+    // 3.5. Resolve custom role if provided
+    let customRoleId: string | null = null;
+    let customRoleName: string | null = null;
+    if (dto.customRoleId) {
+      const cr = await this.prisma.customRole.findFirst({
+        where: { id: dto.customRoleId, tenantId: tenant.id },
+      });
+      if (cr) {
+        customRoleId = cr.id;
+        customRoleName = cr.name;
+      }
+    } else if (dto.customRoleName && dto.customRoleName.trim()) {
+      const cr = await this.prisma.customRole.findFirst({
+        where: {
+          tenantId: tenant.id,
+          name: { equals: dto.customRoleName.trim(), mode: 'insensitive' },
+        },
+      });
+      if (cr) {
+        customRoleId = cr.id;
+        customRoleName = cr.name;
+      } else {
+        customRoleName = dto.customRoleName.trim();
+      }
+    }
+
     // 4. Create staff member in database
     const staff = await this.prisma.staffMember.create({
       data: {
         tenantId: tenant.id,
         roleId: tenantRole.id,
         role: dto.role,
+        customRoleId,
+        customRoleName,
         name: dto.name.trim(),
         email: dto.email?.trim() || null,
         phone: dto.phone?.trim() || null,
@@ -163,6 +191,9 @@ export class StaffService {
     return this.prisma.staffMember.findMany({
       where: { tenantId: tenant.id, isDeleted: false },
       orderBy: { createdAt: 'desc' },
+      include: {
+        customRole: true,
+      },
     });
   }
 
@@ -174,6 +205,9 @@ export class StaffService {
         id: staffId,
         tenantId: tenant.id,
         isDeleted: false,
+      },
+      include: {
+        customRole: true,
       },
     });
 
@@ -248,6 +282,41 @@ export class StaffService {
       roleId = newRole.id;
     }
 
+    let customRoleId = existingStaff.customRoleId;
+    let customRoleName = existingStaff.customRoleName;
+
+    if (dto.customRoleId !== undefined || dto.customRoleName !== undefined) {
+      if (dto.customRoleId) {
+        const cr = await this.prisma.customRole.findFirst({
+          where: { id: dto.customRoleId, tenantId: tenant.id },
+        });
+        if (cr) {
+          customRoleId = cr.id;
+          customRoleName = cr.name;
+        } else {
+          customRoleId = null;
+          customRoleName = null;
+        }
+      } else if (dto.customRoleName && dto.customRoleName.trim()) {
+        const cr = await this.prisma.customRole.findFirst({
+          where: {
+            tenantId: tenant.id,
+            name: { equals: dto.customRoleName.trim(), mode: 'insensitive' },
+          },
+        });
+        if (cr) {
+          customRoleId = cr.id;
+          customRoleName = cr.name;
+        } else {
+          customRoleId = null;
+          customRoleName = dto.customRoleName.trim();
+        }
+      } else if (dto.customRoleName === '' || dto.customRoleId === null) {
+        customRoleId = null;
+        customRoleName = null;
+      }
+    }
+
     const updated = await this.prisma.staffMember.update({
       where: { id: staffId },
       data: {
@@ -258,6 +327,12 @@ export class StaffService {
         ...(dto.hourlyRate !== undefined && { hourlyRate: dto.hourlyRate }),
         ...(dto.branchIds !== undefined && { branchIds: dto.branchIds }),
         ...(dto.active !== undefined && { active: dto.active }),
+        ...(dto.customRoleId !== undefined || dto.customRoleName !== undefined
+          ? { customRoleId, customRoleName }
+          : {}),
+      },
+      include: {
+        customRole: true,
       },
     });
 

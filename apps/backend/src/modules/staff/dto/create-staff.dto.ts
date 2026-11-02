@@ -32,6 +32,22 @@ export class CreateStaffDto {
   role: UserRole;
 
   @ApiPropertyOptional({
+    description: 'Display name of assigned custom role if any',
+    example: 'Head Sommelier',
+  })
+  @IsString()
+  @IsOptional()
+  customRoleName?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID of assigned custom role if any',
+    example: 'uuid',
+  })
+  @IsString()
+  @IsOptional()
+  customRoleId?: string;
+
+  @ApiPropertyOptional({
     description: 'Email address of the staff member',
     example: 'staff@example.com',
   })

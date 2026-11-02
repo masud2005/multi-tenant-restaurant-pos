@@ -37,8 +37,10 @@ model Tenant {
   loyaltyTiers        LoyaltyTier[]
   loyaltyTransactions LoyaltyTransaction[]
   promotions          Promotion[]
+  riders              Rider[]
   notifications       Notification[]
   auditLogs           AuditLog[]
+  customRoles         CustomRole[]
 
   @@map("tenants")
 }
@@ -57,6 +59,25 @@ model TenantRole {
   @@unique([tenantId, role])
   @@map("tenant_roles")
 }
+model CustomRole {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?  @default("")
+  color       String?  @default("purple")
+  baseRole    UserRole @default(CASHIER)
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff       StaffMember[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("custom_roles")
+}
+
 
 model StaffMember {
   id                String   @id @default(uuid())
@@ -64,6 +85,8 @@ model StaffMember {
   userId            String?
   roleId            String
   role              UserRole
+  customRoleName    String?  @default("")
+  customRoleId      String?
   name              String
   email             String?
   phone             String?
@@ -82,11 +105,13 @@ model StaffMember {
   updatedAt DateTime @updatedAt
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tenantRole TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenantRole TenantRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, isDeleted])
   @@index([inviteToken])
+  @@index([customRoleId])
   @@map("staff_members")
 }
 
@@ -113,6 +138,7 @@ model Branch {
   tables            DiningTable[]
   orders            Order[]
   reservations      Reservation[]
+  riders            Rider[]
   notifications     Notification[]
   auditLogs         AuditLog[]
 

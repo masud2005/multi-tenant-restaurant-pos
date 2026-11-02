@@ -19,8 +19,11 @@ import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateOrderLineDto } from './dto/create-order-line.dto';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
+import { CreateOrderRefundDto } from './dto/create-order-refund.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { UpdateKitchenStatusDto } from './dto/update-kitchen-status.dto';
+import { UpdateOrderDeliveryDto } from './dto/update-order-delivery.dto';
 import { ResponseHelper } from '../../common/helpers/response.helper';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -321,6 +324,145 @@ export class OrderController {
     return ResponseHelper.created(
       result,
       `Payment of ${dto.amount} recorded successfully for order ${result.order.orderNumber}`,
+    );
+  }
+
+  @Post(':tenantSlug/orders/:orderId/refunds')
+  @Post(':tenantSlug/orders/:orderId/refund')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.REFUNDS_PROCESS)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Process a full or partial refund for an order',
+    description:
+      'Creates a new refund record for the order, validates refundable amount, updates refunded total, and creates finance audit ledger entries.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'saffron-ember',
+    description: 'Restaurant slug',
+  })
+  @ApiParam({
+    name: 'orderId',
+    example: 'ord-uuid',
+    description: 'Order ID or orderNumber',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Refund processed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid refund amount or exceeds refundable balance',
+  })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  async refundOrder(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: CreateOrderRefundDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.orderService.refundOrder(
+      tenantSlug,
+      orderId,
+      dto,
+      user,
+    );
+    return ResponseHelper.created(
+      result,
+      `Refund of ${dto.amount} processed successfully for order ${result.order?.orderNumber || orderId}`,
+    );
+  }
+
+  @Patch(':tenantSlug/orders/:orderId/delivery')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.DELIVERY_MANAGE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update delivery status and dispatch order',
+    description:
+      'Dispatches delivery order through delivery lifecycle: PENDING -> ASSIGNED -> OUT -> DELIVERED, assigns rider, validates kitchen readiness, and marks order served/completed upon delivery.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'sultans-dine',
+    description: 'Restaurant slug or ID',
+  })
+  @ApiParam({
+    name: 'orderId',
+    example: 'uuid',
+    description: 'Order ID or Order Number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery status updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Order cancelled, invalid status, or missing rider',
+  })
+  @ApiResponse({ status: 404, description: 'Order or rider not found' })
+  @ApiResponse({ status: 409, description: 'Food not ready in kitchen' })
+  async updateDelivery(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: UpdateOrderDeliveryDto,
+  ) {
+    const order = await this.orderService.updateDeliveryStatus(
+      tenantSlug,
+      orderId,
+      dto,
+    );
+    return ResponseHelper.success(
+      order,
+      `Order ${order.orderNumber} delivery status updated to ${order.deliveryStatus}`,
+    );
+  }
+
+  @Patch(':tenantSlug/orders/:orderId/cancel')
+  @Post(':tenantSlug/orders/:orderId/cancel')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(Permission.ORDERS_VOID)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Void / Cancel an active or unpaid order',
+    description:
+      'Cancels an active order, records the void reason in notes, releases any occupied dining table, and requires any paid balance to be fully refunded first.',
+  })
+  @ApiParam({
+    name: 'tenantSlug',
+    example: 'saffron-ember',
+    description: 'Restaurant slug',
+  })
+  @ApiParam({
+    name: 'orderId',
+    example: 'ord-uuid',
+    description: 'Order ID or orderNumber',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Order cancelled / voided successfully',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Order is completed or has unrefunded payments',
+  })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  async cancelOrder(
+    @Param('tenantSlug') tenantSlug: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: CancelOrderDto,
+    @CurrentUser() user: any,
+  ) {
+    const order = await this.orderService.cancelOrder(
+      tenantSlug,
+      orderId,
+      dto,
+      user,
+    );
+    return ResponseHelper.success(
+      order,
+      `Order ${order.orderNumber} has been voided / cancelled`,
     );
   }
 }

@@ -9,9 +9,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateOrderLineDto } from './dto/create-order-line.dto';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
+import { CreateOrderRefundDto } from './dto/create-order-refund.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
+import { UpdateOrderDeliveryDto } from './dto/update-order-delivery.dto';
 import {
+  DeliveryStatus,
   KitchenStatus,
+  LoyaltyTransactionType,
   OrderStatus,
   OrderType,
   PaymentMethod,
@@ -280,6 +285,7 @@ export class OrderService {
           customerName: dto.customerName?.trim() || '',
           customerPhone: dto.customerPhone?.trim() || '',
           deliveryAddress: dto.deliveryAddress?.trim() || null,
+          deliveryStatus: dto.type === OrderType.DELIVERY ? DeliveryStatus.PENDING : null,
           notes: dto.notes?.trim() || '',
           createdBy: currentUser?.id || dto.createdBy?.trim() || 'Staff',
           status: OrderStatus.IN_KITCHEN,
@@ -448,6 +454,13 @@ export class OrderService {
             name: true,
           },
         },
+        rider: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
       },
     });
 
@@ -491,6 +504,13 @@ export class OrderService {
           select: {
             id: true,
             name: true,
+          },
+        },
+        rider: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
           },
         },
       },
@@ -874,5 +894,388 @@ export class OrderService {
     });
 
     return result;
+  }
+
+  /**
+   * Process a refund for an order (Full or partial refund)
+   */
+  async refundOrder(
+    tenantSlug: string,
+    orderId: string,
+    dto: CreateOrderRefundDto,
+    currentUser?: AuthenticatedUser | any,
+  ) {
+    // 1. Verify tenant exists
+    const tenant = await this.resolveTenant(tenantSlug);
+
+    // 2. Fetch order with payments, refunds, and customer
+    const order = await this.prisma.order.findFirst({
+      where: {
+        tenantId: tenant.id,
+        OR: [
+          { id: orderId },
+          { orderNumber: orderId },
+          { orderNumber: `#${orderId.replace(/^#/, '')}` },
+        ],
+      },
+      include: {
+        payments: true,
+        refunds: true,
+        customer: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order');
+    }
+
+    const refundable = this.round2(order.paid - order.refunded);
+    if (refundable <= 0.004) {
+      throw new BadRequestException('Nothing left to refund on this order');
+    }
+
+    const amount = this.round2(dto.amount);
+    if (amount <= 0) {
+      throw new BadRequestException('Refund amount must be greater than zero');
+    }
+
+    if (amount > refundable) {
+      throw new BadRequestException(
+        `Refund amount exceeds refundable balance. You can refund at most ${refundable}`,
+      );
+    }
+
+    // Verify refund method matches one of the payment methods used for this order
+    const hasMatchingPayment = order.payments.some(
+      (p) => p.method === dto.method,
+    );
+    if (!hasMatchingPayment) {
+      const allowed = [...new Set(order.payments.map((p) => p.method))].join(', ');
+      throw new BadRequestException(
+        `Refund method ${dto.method} was not used to pay for this order. Allowed: ${allowed}`,
+      );
+    }
+
+    const processedBy =
+      dto.by?.trim() ||
+      currentUser?.fullName ||
+      currentUser?.name ||
+      currentUser?.email ||
+      'Staff';
+
+    // 3. Atomic transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create OrderRefund record
+      const refund = await tx.orderRefund.create({
+        data: {
+          orderId: order.id,
+          amount,
+          method: dto.method,
+          reason: dto.reason.trim(),
+          by: processedBy,
+        },
+      });
+
+      // Update Order.refunded
+      const newRefunded = this.round2(order.refunded + amount);
+      const updatedOrder = await tx.order.update({
+        where: { id: order.id },
+        data: {
+          refunded: newRefunded,
+        },
+        include: {
+          lines: { include: { modifiers: true } },
+          payments: true,
+          refunds: true,
+          table: true,
+          customer: true,
+          rider: true,
+          branch: { select: { id: true, name: true } },
+        },
+      });
+
+      // Deduct proportional loyalty points if customer exists
+      if (order.customerId) {
+        const loyaltySettings = await tx.loyaltySettings.findUnique({
+          where: { tenantId: tenant.id },
+        });
+        const spendPerPoint = loyaltySettings?.spendAmountPerPoint || 100.0;
+        const pointsToDeduct = Math.floor(amount / spendPerPoint);
+
+        if (pointsToDeduct > 0 && order.customer) {
+          const currentPoints = order.customer.loyaltyPoints ?? 0;
+          const actualDeduct = Math.min(currentPoints, pointsToDeduct);
+          const newBalance = Math.max(0, currentPoints - actualDeduct);
+
+          await tx.customer.update({
+            where: { id: order.customerId },
+            data: { loyaltyPoints: newBalance },
+          });
+
+          await tx.loyaltyTransaction.create({
+            data: {
+              tenantId: tenant.id,
+              customerId: order.customerId,
+              orderId: order.id,
+              points: -actualDeduct,
+              type: LoyaltyTransactionType.REFUNDED,
+              reason: `Refund of ${amount} on order ${order.orderNumber}`,
+              balanceAfter: newBalance,
+            },
+          });
+        }
+      }
+
+      return {
+        refund,
+        order: updatedOrder,
+      };
+    });
+
+    return result;
+  }
+
+  /**
+   * Update order delivery dispatch status and assign rider (Delivery Dispatch)
+   */
+  async updateDeliveryStatus(
+    tenantSlug: string,
+    orderId: string,
+    dto: UpdateOrderDeliveryDto,
+  ) {
+    const tenant = await this.resolveTenant(tenantSlug);
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        tenantId: tenant.id,
+        OR: [
+          { id: orderId },
+          { orderNumber: orderId },
+          { orderNumber: `#${orderId.replace(/^#/, '')}` },
+        ],
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order');
+    }
+
+    if (order.type !== OrderType.DELIVERY && !order.deliveryAddress) {
+      throw new BadRequestException('Order is not a delivery order');
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Cannot update delivery status of a cancelled order',
+      );
+    }
+
+    const targetStatus = dto.status;
+    const now = new Date();
+    const updateData: Prisma.OrderUpdateInput = {
+      deliveryStatus: targetStatus,
+    };
+
+    if (targetStatus === DeliveryStatus.PENDING) {
+      updateData.deliveryStatus = DeliveryStatus.PENDING;
+      updateData.rider = { disconnect: true };
+      updateData.riderName = null;
+      updateData.dispatchedAt = null;
+    } else if (targetStatus === DeliveryStatus.ASSIGNED) {
+      if (!dto.riderId) {
+        throw new BadRequestException('Choose a rider for delivery assignment.');
+      }
+
+      const rider = await this.prisma.rider.findFirst({
+        where: {
+          id: dto.riderId,
+          tenantId: tenant.id,
+          isDeleted: false,
+        },
+      });
+
+      if (!rider) {
+        throw new NotFoundException('Rider');
+      }
+
+      updateData.rider = { connect: { id: rider.id } };
+      updateData.riderName = rider.name;
+    } else if (targetStatus === DeliveryStatus.OUT) {
+      if (
+        order.kitchenStatus !== KitchenStatus.READY &&
+        order.kitchenStatus !== KitchenStatus.BUMPED
+      ) {
+        throw new ConflictException(
+          'Wait until the kitchen marks the order ready.',
+        );
+      }
+
+      updateData.dispatchedAt = now;
+      if (order.kitchenStatus === KitchenStatus.READY) {
+        updateData.kitchenStatus = KitchenStatus.BUMPED;
+      }
+
+      if (dto.riderId) {
+        const rider = await this.prisma.rider.findFirst({
+          where: {
+            id: dto.riderId,
+            tenantId: tenant.id,
+            isDeleted: false,
+          },
+        });
+        if (rider) {
+          updateData.rider = { connect: { id: rider.id } };
+          updateData.riderName = rider.name;
+        }
+      }
+    } else if (targetStatus === DeliveryStatus.DELIVERED) {
+      updateData.deliveredAt = now;
+
+      if (
+        order.status === OrderStatus.READY ||
+        order.status === OrderStatus.IN_KITCHEN
+      ) {
+        updateData.status = OrderStatus.SERVED;
+      }
+
+      const effectiveStatus = updateData.status || order.status;
+      if (
+        effectiveStatus === OrderStatus.SERVED &&
+        order.paid >= order.total &&
+        order.total > 0
+      ) {
+        updateData.status = OrderStatus.COMPLETED;
+        updateData.completedAt = now;
+      }
+    }
+
+    return this.prisma.order.update({
+      where: { id: order.id },
+      data: updateData,
+      include: {
+        lines: {
+          include: {
+            modifiers: true,
+          },
+        },
+        payments: true,
+        refunds: true,
+        table: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        rider: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Void / Cancel an active or unpaid order
+   */
+  async cancelOrder(
+    tenantSlug: string,
+    orderId: string,
+    dto: CancelOrderDto,
+    currentUser?: AuthenticatedUser | any,
+  ) {
+    // 1. Resolve tenant
+    const tenant = await this.resolveTenant(tenantSlug);
+
+    // 2. Fetch order with table and payments
+    const order = await this.prisma.order.findFirst({
+      where: {
+        tenantId: tenant.id,
+        OR: [
+          { id: orderId },
+          { orderNumber: orderId },
+          { orderNumber: `#${orderId.replace(/^#/, '')}` },
+        ],
+      },
+      include: {
+        table: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order');
+    }
+
+    if (order.status === OrderStatus.COMPLETED) {
+      throw new ConflictException('Completed orders cannot be voided.');
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Order is already cancelled.');
+    }
+
+    const unrefundedPaid = this.round2(order.paid - order.refunded);
+    if (unrefundedPaid > 0.004) {
+      throw new ConflictException('Refund all payments before voiding.');
+    }
+
+    const reason = dto.reason?.trim() || 'Voided by staff';
+    const updatedNotes = [order.notes, `Voided: ${reason}`]
+      .filter(Boolean)
+      .join('\n');
+
+    // 3. Atomic transaction
+    const updatedOrder = await this.prisma.$transaction(async (tx) => {
+      // Release table if occupied by this order
+      if (order.tableId) {
+        const table = await tx.diningTable.findUnique({
+          where: { id: order.tableId },
+        });
+        if (
+          table &&
+          (table.currentOrderId === order.id ||
+            table.status === TableStatus.OCCUPIED)
+        ) {
+          await tx.diningTable.update({
+            where: { id: order.tableId },
+            data: {
+              status: TableStatus.AVAILABLE,
+              currentOrderId: null,
+            },
+          });
+        }
+      }
+
+      return await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.CANCELLED,
+          notes: updatedNotes,
+        },
+        include: {
+          lines: {
+            include: {
+              modifiers: true,
+            },
+          },
+          payments: true,
+          refunds: true,
+          table: true,
+          branch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          customer: true,
+          rider: true,
+        },
+      });
+    });
+
+    return updatedOrder;
   }
 }

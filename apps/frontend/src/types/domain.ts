@@ -431,6 +431,21 @@ export interface Reservation {
   createdAt: string;
 }
 
+export interface ReservationSettings {
+  id?: string;
+  tenantId?: string;
+  defaultDurationMin: number;
+  bufferTimeMin: number;
+  earlyArrivalWindowMin: number;
+  noShowGracePeriodMin: number;
+  minPartySize: number;
+  maxPartySize: number;
+  maxAdvanceDays: number;
+  minAdvanceHours: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface CashEntry {
   id: string;
   kind: "in" | "out";
@@ -502,28 +517,6 @@ export interface StaffMember {
   invitedAt?: string | null;
   inviteUrl?: string | null;
   emailSent?: boolean | undefined;
-}
-
-export interface Shift {
-  id: string;
-  tenantId: string;
-  branchId: string;
-  staffId: string;
-  staffName: string;
-  date: string; // yyyy-mm-dd
-  start: string; // HH:mm
-  end: string; // HH:mm
-  notes: string;
-}
-
-export interface AttendanceRecord {
-  id: string;
-  tenantId: string;
-  branchId: string;
-  staffId: string;
-  staffName: string;
-  clockIn: string;
-  clockOut: string | null;
 }
 
 export interface Promotion {

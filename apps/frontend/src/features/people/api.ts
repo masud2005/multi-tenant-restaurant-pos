@@ -1,13 +1,13 @@
 import { baseApi, run } from "@/app/base-api";
 import * as people from "@/services/people.service";
 import * as money from "@/services/money.service";
-import type { AttendanceRecord, Branch, CashSession, Customer, DeliveryStatus, Expense, LoyaltySettings, Order, Promotion, Reservation, ReservationStatus, Rider, Shift, StaffMember } from "@/types/domain";
+import type { Branch, CashSession, Customer, DeliveryStatus, Expense, LoyaltySettings, Order, Promotion, Reservation, ReservationSettings, ReservationStatus, Rider, StaffMember } from "@/types/domain";
 
 type T<A> = { tenantId: string } & A;
 const ORDER = [{ type: "Order" as const, id: "LIST" }, "Dashboard" as const];
 
 const api3 = baseApi.enhanceEndpoints({
-  addTagTypes: ["Customer", "Reservation", "Delivery", "Ledger", "Cash", "Expense", "Staff", "Shift", "Attendance", "Promotion"],
+  addTagTypes: ["Customer", "Reservation", "Delivery", "Ledger", "Cash", "Expense", "Staff", "Promotion"],
 });
 
 export const peopleApi = api3.injectEndpoints({
@@ -23,11 +23,14 @@ export const peopleApi = api3.injectEndpoints({
     saveReservation: b.mutation<Reservation, T<people.ReservationInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveReservation(tenantId, i)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
     setReservationStatus: b.mutation<Reservation, T<{ id: string; status: ReservationStatus }>>({ queryFn: ({ tenantId, id, status }) => run(() => people.setReservationStatus(tenantId, id, status)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
     deleteReservation: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteReservation(tenantId, id)), invalidatesTags: ["Reservation", "Table", "Dashboard"] }),
+    reservationSettings: b.query<ReservationSettings, string>({ queryFn: (tenantId) => run(() => people.getReservationSettings(tenantId)), providesTags: ["Reservation"] }),
+    updateReservationSettings: b.mutation<ReservationSettings, T<Partial<ReservationSettings>>>({ queryFn: ({ tenantId, ...settings }) => run(() => people.updateReservationSettings(tenantId, settings)), invalidatesTags: ["Reservation"] }),
 
     // ---- Delivery ----
     deliveries: b.query<Order[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => money.listDeliveries(tenantId, branchId)), providesTags: ["Delivery", { type: "Order", id: "LIST" }] }),
     riders: b.query<Rider[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => money.listRiders(tenantId, branchId)), providesTags: ["Delivery"] }),
-    saveRider: b.mutation<Rider, T<{ branchId: string; name: string; phone: string }>>({ queryFn: ({ tenantId, ...i }) => run(() => money.saveRider(tenantId, i)), invalidatesTags: ["Delivery"] }),
+    saveRider: b.mutation<Rider, T<{ id?: string; branchId: string; name: string; phone: string }>>({ queryFn: ({ tenantId, ...i }) => run(() => money.saveRider(tenantId, i)), invalidatesTags: ["Delivery"] }),
+    deleteRider: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => money.deleteRider(tenantId, id)), invalidatesTags: ["Delivery"] }),
     updateDelivery: b.mutation<Order, T<{ orderId: string; status: DeliveryStatus; riderId?: string | undefined }>>({
       queryFn: ({ tenantId, ...i }) => run(() => money.updateDelivery(tenantId, i)),
       invalidatesTags: (_r, _e, a) => ["Delivery", { type: "Order", id: a.orderId }, ...ORDER],
@@ -47,16 +50,11 @@ export const peopleApi = api3.injectEndpoints({
     createExpense: b.mutation<Expense, T<money.ExpenseInput>>({ queryFn: ({ tenantId, ...i }) => run(() => money.createExpense(tenantId, i)), invalidatesTags: ["Expense", "Cash"] }),
     deleteExpense: b.mutation<{ ok: true }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => money.deleteExpense(tenantId, id)), invalidatesTags: ["Expense", "Cash"] }),
 
-    // ---- Staff, shifts, attendance ----
+    // ---- Staff ----
     staff: b.query<StaffMember[], string>({ queryFn: (t) => run(() => people.listStaff(t)), providesTags: ["Staff"] }),
-    saveStaff: b.mutation<StaffMember, T<people.StaffInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveStaff(tenantId, i)), invalidatesTags: ["Staff", "Shift"] }),
-    deleteStaff: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteStaff(tenantId, id)), invalidatesTags: ["Staff", "Shift"] }),
+    saveStaff: b.mutation<StaffMember, T<people.StaffInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveStaff(tenantId, i)), invalidatesTags: ["Staff"] }),
+    deleteStaff: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteStaff(tenantId, id)), invalidatesTags: ["Staff"] }),
     reinviteStaff: b.mutation<{ success: boolean; message: string; inviteToken?: string; inviteUrl?: string; emailSent?: boolean }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.reinviteStaff(tenantId, id)), invalidatesTags: ["Staff"] }),
-    shifts: b.query<Shift[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => people.listShifts(tenantId, branchId)), providesTags: ["Shift"] }),
-    saveShift: b.mutation<Shift, T<people.ShiftInput>>({ queryFn: ({ tenantId, ...i }) => run(() => people.saveShift(tenantId, i)), invalidatesTags: ["Shift"] }),
-    deleteShift: b.mutation<{ ok: true }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => people.deleteShift(tenantId, id)), invalidatesTags: ["Shift"] }),
-    attendance: b.query<AttendanceRecord[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => people.listAttendance(tenantId, branchId)), providesTags: ["Attendance"] }),
-    toggleClock: b.mutation<AttendanceRecord, T<{ userId: string; branchId: string }>>({ queryFn: ({ tenantId, ...i }) => run(() => people.toggleClock(tenantId, i)), invalidatesTags: ["Attendance"] }),
 
     // ---- Branches & promotions ----
     allBranches: b.query<Branch[], string>({ queryFn: (t) => run(() => people.listAllBranches(t)), providesTags: ["Branch"] }),
@@ -77,9 +75,12 @@ export const {
   useSaveReservationMutation,
   useSetReservationStatusMutation,
   useDeleteReservationMutation,
+  useReservationSettingsQuery,
+  useUpdateReservationSettingsMutation,
   useDeliveriesQuery,
   useRidersQuery,
   useSaveRiderMutation,
+  useDeleteRiderMutation,
   useUpdateDeliveryMutation,
   useLedgerQuery,
   useRefundOrderMutation,
@@ -94,11 +95,6 @@ export const {
   useSaveStaffMutation,
   useDeleteStaffMutation,
   useReinviteStaffMutation,
-  useShiftsQuery,
-  useSaveShiftMutation,
-  useDeleteShiftMutation,
-  useAttendanceQuery,
-  useToggleClockMutation,
   useAllBranchesQuery,
   useSaveBranchMutation,
   usePromotionsQuery,

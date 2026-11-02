@@ -7,7 +7,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { AuthPasswordController } from './controllers/password.controller';
 import { PasswordService } from './services/password.service';
 import { JwtStrategy } from '../../common/strategies/jwt.strategy';
-
+import { EmailService } from '../../shared/mail/email-service';
 import { StaffModule } from '../staff/staff.module';
 
 @Module({
@@ -26,7 +26,7 @@ import { StaffModule } from '../staff/staff.module';
     }),
   ],
   controllers: [AuthController, AuthPasswordController],
-  providers: [AuthService, PasswordService, JwtStrategy],
+  providers: [AuthService, PasswordService, JwtStrategy, EmailService],
   exports: [AuthService, JwtModule],
 })
-export class AuthModule { }
+export class AuthModule {}

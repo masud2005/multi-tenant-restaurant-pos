@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import {
   deleteCustomRole,
   getCustomRoles,
+  getCustomRolesSync,
   saveCustomRole,
 } from "@/services/people.service";
 import type { CustomRole, RoleId, StaffMember } from "@/types/domain";
@@ -72,7 +73,7 @@ export const Route = createFileRoute("/app/$tenantSlug/team/")({
     ],
   }),
   component: () => (
-    <RequirePermission perm="shifts.manage">
+    <RequirePermission perm="staff.manage">
       <TeamPage />
     </RequirePermission>
   ),
@@ -147,7 +148,8 @@ function TeamPage() {
   const [editingRole, setEditingRole] = useState<CustomRole | "new" | null>(null);
 
   useEffect(() => {
-    setCustomRoles(getCustomRoles(tenant.slug));
+    setCustomRoles(getCustomRolesSync(tenant.slug));
+    getCustomRoles(tenant.slug).then(setCustomRoles).catch(console.error);
   }, [tenant.slug]);
 
   const bName = (id: string) => branches.find((b) => b.id === id)?.name ?? id;
@@ -156,11 +158,15 @@ function TeamPage() {
   const totalRoles = STANDARD_ROLE_INFO.length + customRoles.length;
   const totalStaff = list.data?.length ?? 0;
 
-  const handleDeleteRole = (role: CustomRole) => {
-    deleteCustomRole(tenant.slug, role.id);
-    const updated = customRoles.filter((r) => r.id !== role.id);
-    setCustomRoles(updated);
-    toast.success(`Role "${role.name}" deleted.`);
+  const handleDeleteRole = async (role: CustomRole) => {
+    try {
+      await deleteCustomRole(tenant.slug, role.id);
+      const updated = customRoles.filter((r) => r.id !== role.id);
+      setCustomRoles(updated);
+      toast.success(`Role "${role.name}" deleted.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete role.");
+    }
   };
 
   return (
@@ -437,7 +443,7 @@ function RoleDialog({
   const [name, setName] = useState(isNew ? "" : role.name);
   const [description, setDescription] = useState(isNew ? "" : (role.description || ""));
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -445,18 +451,22 @@ function RoleDialog({
       return;
     }
 
-    const saved = saveCustomRole(tenant.slug, {
-      ...(isNew ? {} : { id: role.id }),
-      name: trimmed,
-      description: description.trim(),
-      baseRole: isNew ? "waiter" : role.baseRole,
-      color: "purple",
-      permissions: isNew ? [] : role.permissions,
-    });
+    try {
+      const saved = await saveCustomRole(tenant.slug, {
+        ...(isNew ? {} : { id: role.id }),
+        name: trimmed,
+        description: description.trim(),
+        baseRole: isNew ? "waiter" : role.baseRole,
+        color: "purple",
+        permissions: isNew ? [] : role.permissions,
+      });
 
-    toast.success(isNew ? `Role "${saved.name}" created!` : `Role "${saved.name}" updated!`);
-    onSaved(saved);
-    onClose();
+      toast.success(isNew ? `Role "${saved.name}" created!` : `Role "${saved.name}" updated!`);
+      onSaved(saved);
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save role.");
+    }
   };
 
   return (
@@ -531,7 +541,10 @@ function StaffDialog({
   const { tenant, branches: contextBranches } = useTenant();
   const branchesQuery = useAllBranchesQuery(tenant.id);
   const [save, { isLoading }] = useSaveStaffMutation();
-  const customRoles = useMemo(() => getCustomRoles(tenant.slug), [tenant.slug]);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>(() => getCustomRolesSync(tenant.slug));
+  useEffect(() => {
+    getCustomRoles(tenant.slug).then(setCustomRoles).catch(console.error);
+  }, [tenant.slug]);
 
   const availableBranches =
     branchesQuery.data && branchesQuery.data.length > 0

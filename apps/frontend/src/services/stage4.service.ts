@@ -383,6 +383,21 @@ export async function getSalesReport(tenantId: string, branchId?: string, range 
 }
 
 export async function getFinancialReport(tenantId: string, branchId?: string, range = "7d"): Promise<FinancialReport> {
+  try {
+    const params = new URLSearchParams();
+    if (branchId && branchId !== "all") params.append("branchId", branchId);
+    if (range) params.append("range", range);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const backendData = await backendFetch<any>(`/tenants/${tenantId}/reports/financial${qs}`);
+    if (backendData && typeof backendData.grossSales === "number" && Array.isArray(backendData.byPaymentMethod)) {
+      return backendData;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch financial report endpoint from backend, falling back to orders/local:", err);
+    }
+  }
+
   const db = tenantDb(tenantId);
   let rawOrders: any[] = [];
   let fromBackend = false;
@@ -493,9 +508,30 @@ export async function getFinancialReport(tenantId: string, branchId?: string, ra
 }
 
 export async function getInventoryReport(tenantId: string, branchId?: string): Promise<InventoryReport> {
+  try {
+    const params = new URLSearchParams();
+    if (branchId && branchId !== "all") params.append("branchId", branchId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const backendData = await backendFetch<any>(`/tenants/${tenantId}/reports/inventory${qs}`);
+    if (backendData && typeof backendData.totalValuation === "number") {
+      return {
+        totalValuation: Number(backendData.totalValuation) || 0,
+        totalItems: Number(backendData.totalItems) || 0,
+        lowStockCount: Number(backendData.lowStockCount) || 0,
+        wastageCost: Number(backendData.wastageCost) || 0,
+        lowStockList: Array.isArray(backendData.lowStockList) ? backendData.lowStockList : [],
+        topMovements: Array.isArray(backendData.topMovements) ? backendData.topMovements : [],
+      };
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch inventory report from backend, falling back to local calculation:", err);
+    }
+  }
+
   await latency(60, 150);
   const db = tenantDb(tenantId);
-  const targetIngredients = branchId
+  const targetIngredients = branchId && branchId !== "all"
     ? db.ingredients.filter((ingredient) => ingredient.branchId === branchId)
     : db.ingredients;
 
@@ -546,9 +582,31 @@ export async function getInventoryReport(tenantId: string, branchId?: string): P
 }
 
 export async function getOperationsReport(tenantId: string, branchId?: string, range = "7d"): Promise<OperationsReport> {
+  try {
+    const params = new URLSearchParams();
+    if (branchId && branchId !== "all") params.append("branchId", branchId);
+    if (range) params.append("range", range);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const backendData = await backendFetch<any>(`/tenants/${tenantId}/reports/operations${qs}`);
+    if (backendData && Array.isArray(backendData.ordersByStatus)) {
+      return {
+        avgPrepTimeMinutes: Number(backendData.avgPrepTimeMinutes) || 14.5,
+        ordersByStatus: backendData.ordersByStatus,
+        ordersByType: Array.isArray(backendData.ordersByType) ? backendData.ordersByType : [],
+        kitchenBumpsCount: Number(backendData.kitchenBumpsCount) || 0,
+        tableTurnover: Array.isArray(backendData.tableTurnover) ? backendData.tableTurnover : [],
+        staffShiftsSummary: Array.isArray(backendData.staffShiftsSummary) ? backendData.staffShiftsSummary : [],
+      };
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      console.warn("Could not fetch operations report from backend, falling back to local calculation:", err);
+    }
+  }
+
   await latency(60, 150);
   const db = tenantDb(tenantId);
-  const orders = branchId
+  const orders = branchId && branchId !== "all"
     ? db.orders.filter((order) => order.branchId === branchId)
     : db.orders;
 
@@ -584,15 +642,12 @@ export async function getOperationsReport(tenantId: string, branchId?: string, r
     };
   });
 
-  const staffShiftsSummary = (db.staff ?? []).map((staffMember) => {
-    const memberShifts = (db.shifts ?? []).filter((shift) => shift.staffId === staffMember.id);
-    return {
-      staffId: staffMember.id,
-      name: staffMember.name,
-      shiftsCount: memberShifts.length,
-      totalHours: memberShifts.length * 8, // Estimated 8-hour shift default
-    };
-  });
+  const staffShiftsSummary = (db.staff ?? []).map((staffMember) => ({
+    staffId: staffMember.id,
+    name: staffMember.name,
+    shiftsCount: 0,
+    totalHours: 0,
+  }));
 
   return {
     avgPrepTimeMinutes: 14.5, // Average calculated fulfillment time

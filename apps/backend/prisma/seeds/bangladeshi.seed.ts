@@ -1,5 +1,7 @@
 import {
+  DeliveryStatus,
   DiscountKind,
+  KitchenStatus,
   MovementReason,
   OrderStatus,
   OrderType,
@@ -1330,6 +1332,36 @@ export async function seedBangladeshiPOS(prisma: PrismaClient) {
     }
   }
   console.log(`Seeded ${ordersData.length} Orders with Payments & Cash Drawer Ledger.`);
+
+  // --- Seed Riders ---
+  const defaultRiders = [
+    { name: 'Babul Mia', phone: '+8801611000123' },
+    { name: 'Shohel Rana', phone: '+8801611000456' },
+  ];
+
+  for (const branch of tenant.branches) {
+    for (const r of defaultRiders) {
+      const existing = await prisma.rider.findFirst({
+        where: {
+          tenantId: tenant.id,
+          branchId: branch.id,
+          phone: r.phone,
+        },
+      });
+      if (!existing) {
+        await prisma.rider.create({
+          data: {
+            tenantId: tenant.id,
+            branchId: branch.id,
+            name: r.name,
+            phone: r.phone,
+            isActive: true,
+          },
+        });
+      }
+    }
+  }
+  console.log('Seeded Delivery Riders for branches.');
 
   console.log('--- Bangladeshi Seed Data Seeding Successfully Completed! ---\n');
 }

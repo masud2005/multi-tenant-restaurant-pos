@@ -21,8 +21,11 @@ import { CustomerModule } from './customer/customer.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { FinanceModule } from './finance/finance.module';
 import { PromotionModule } from './promotion/promotion.module';
+import { RiderModule } from './rider/rider.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ReportModule } from './report/report.module';
 
 @Module({
   imports: [
@@ -48,8 +51,11 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     LoyaltyModule,
     FinanceModule,
     PromotionModule,
+    RiderModule,
     NotificationsModule,
     AuditLogModule,
+    DashboardModule,
+    ReportModule,
   ],
   exports: [
     TenantRoleModule,
@@ -73,8 +79,11 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     LoyaltyModule,
     FinanceModule,
     PromotionModule,
+    RiderModule,
     NotificationsModule,
     AuditLogModule,
+    DashboardModule,
+    ReportModule,
   ],
 })
 export class ModulesModule {}

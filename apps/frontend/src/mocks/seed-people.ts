@@ -1,5 +1,4 @@
 import type {
-  AttendanceRecord,
   Branch,
   CashSession,
   Customer,
@@ -9,13 +8,12 @@ import type {
   Promotion,
   Reservation,
   Rider,
-  Shift,
   StaffMember,
 } from "@/types/domain";
 import { BRANCHES, USERS } from "./platform";
 
 // Stage 3 seed: customers & loyalty, reservations, riders, cash, expenses,
-// staff, shifts, attendance, branches and promotions.
+// staff, branches and promotions.
 
 export interface PeopleData {
   branches: Branch[];
@@ -26,8 +24,6 @@ export interface PeopleData {
   cashSessions: CashSession[];
   expenses: Expense[];
   staff: StaffMember[];
-  shifts: Shift[];
-  attendance: AttendanceRecord[];
   promotions: Promotion[];
 }
 
@@ -107,12 +103,6 @@ export function buildPeople(tenantId: string, orders: Order[]): PeopleData {
   (EXTRA_STAFF[tenantId] ?? []).forEach(([name, role, rate], i) =>
     staff.push({ id: `${p}_stf_x${i}`, tenantId, userId: null, name, email: "", phone: "", role, branchIds: branches.map((b) => b.id), hourlyRate: rate, active: true }),
   );
-
-  const shifts: Shift[] = staff
-    .filter((s) => s.role !== "owner")
-    .flatMap((s, i) =>
-      [0, 1, 2].map((d) => ({ id: `${p}_sh_${i}_${d}`, tenantId, branchId: first, staffId: s.id, staffName: s.name, date: day(d), start: i % 2 ? "15:00" : "09:00", end: i % 2 ? "23:00" : "17:00", notes: "" })),
-    );
 
   const resSeedByTenant: Record<string, { name: string; phone: string; size: number; hoursAhead: number; status: Reservation["status"]; notes: string; tableNum: number }[]> = {
     t_saffron: [
@@ -228,8 +218,6 @@ export function buildPeople(tenantId: string, orders: Order[]): PeopleData {
     cashSessions: [] as CashSession[],
     expenses,
     staff,
-    shifts,
-    attendance: [] as AttendanceRecord[],
     promotions,
   };
 }

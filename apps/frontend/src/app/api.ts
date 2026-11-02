@@ -11,8 +11,11 @@ export const api = baseApi.injectEndpoints({
     login: b.mutation<User, { email: string; password: string }>({
       queryFn: ({ email, password }) => run(() => platform.login(email, password)),
     }),
-    requestReset: b.mutation<{ ok: true }, { email: string }>({
+    requestReset: b.mutation<platform.PasswordResetResponse, { email: string }>({
       queryFn: ({ email }) => run(() => platform.requestPasswordReset(email)),
+    }),
+    resetPassword: b.mutation<{ message: string }, { token: string; newPassword: string }>({
+      queryFn: ({ token, newPassword }) => run(() => platform.resetPassword(token, newPassword)),
     }),
     me: b.query<User, string>({
       queryFn: (userId) => run(() => platform.getUser(userId)),
@@ -134,6 +137,7 @@ export const api = baseApi.injectEndpoints({
 export const {
   useLoginMutation,
   useRequestResetMutation,
+  useResetPasswordMutation,
   useMeQuery,
   useMyTenantsQuery,
   useBranchesQuery,

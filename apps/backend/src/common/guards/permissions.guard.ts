@@ -71,7 +71,7 @@ export class PermissionsGuard implements CanActivate {
         grantedPermissions = (DEFAULT_ROLE_PERMISSIONS[user.role as UserRole] || []).map(String);
       }
 
-      // Check optional staff-specific custom permissions override
+      // Check optional staff-specific custom permissions override and custom role
       if (user.id) {
         const staffMember = await this.prisma.staffMember.findFirst({
           where: {
@@ -80,7 +80,16 @@ export class PermissionsGuard implements CanActivate {
               ? { slug: String(tenantSlug) }
               : { id: String(tenantId) },
           },
+          include: {
+            customRole: true,
+          },
         });
+
+        if (staffMember?.customRole?.permissions?.length) {
+          grantedPermissions = Array.from(
+            new Set([...grantedPermissions, ...staffMember.customRole.permissions]),
+          );
+        }
 
         if (staffMember?.customPermissions?.length) {
           grantedPermissions = Array.from(
@@ -100,7 +109,7 @@ export class PermissionsGuard implements CanActivate {
 
     if (!hasAll) {
       throw new ForbiddenException(
-        `Insufficient permissions. Requires: [${requiredPermissions.join(', ')}]`,
+        `Insufficient permissions. Required: [${requiredPermissions.join(', ')}]`,
       );
     }
 

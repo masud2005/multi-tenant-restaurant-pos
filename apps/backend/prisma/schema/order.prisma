@@ -70,6 +70,7 @@ model Order {
   branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
   table               DiningTable?         @relation(fields: [tableId], references: [id], onDelete: SetNull)
   customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  rider               Rider?               @relation(fields: [riderId], references: [id], onDelete: SetNull)
   lines               OrderLine[]
   payments            OrderPayment[]
   refunds             OrderRefund[]

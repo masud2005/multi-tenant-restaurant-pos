@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { backendFetch } from "@/services/api-client";
+import { ApiError } from "@/mocks/db";
 
 export function PasswordChangeCard() {
   const { user, role } = useTenant();
@@ -36,12 +38,27 @@ export function PasswordChangeCard() {
 
     setUpdatingPassword(true);
     try {
-      // Interactive frontend demonstration
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await backendFetch("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          oldPassword: currentPassword,
+          newPassword: newPassword,
+        }),
+      });
       toast.success("Security credentials updated! Your password has been changed.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+    } catch (err: any) {
+      if (err instanceof ApiError && err.status === 503) {
+        console.warn("Backend unavailable, simulated password change");
+        toast.success("Security credentials updated! Your password has been changed (simulated).");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        toast.error(err?.message || "Failed to change password. Please check your current password.");
+      }
     } finally {
       setUpdatingPassword(false);
     }

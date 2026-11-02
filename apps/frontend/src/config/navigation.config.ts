@@ -96,7 +96,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Team",
     items: [
-      { path: "team", label: "Staff", icon: Users, permission: "shifts.manage" },
+      { path: "team", label: "Staff", icon: Users, permission: "staff.manage" },
       { path: "team/roles", label: "Roles & permissions", icon: ShieldCheck, permission: "roles.view" },
       { path: "branches", label: "Branches", icon: Store, permission: "branches.manage" },
     ],

@@ -91,6 +91,33 @@ export async function saveCategory(tenantId: string, input: { id?: string | unde
 }
 
 export async function moveCategory(tenantId: string, id: string, dir: -1 | 1): Promise<Category[]> {
+  // Call backend API to reorder categories
+  try {
+    const updated = await backendFetch<Category[]>(`/tenants/${tenantId}/categories/${id}/move`, {
+      method: "PATCH",
+      body: JSON.stringify({ dir }),
+    });
+
+    if (Array.isArray(updated)) {
+      const db = tenantDb(tenantId);
+      const mapped: Category[] = updated.map((c, idx) => ({
+        id: c.id,
+        tenantId: c.tenantId || tenantId,
+        name: c.name,
+        sort: c.sort ?? idx,
+      }));
+      db.categories = mapped;
+      commit(tenantId);
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for moving category, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency(60, 150);
   const db = tenantDb(tenantId);
   const list = [...db.categories].sort((a, b) => a.sort - b.sort);

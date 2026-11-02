@@ -54,9 +54,7 @@ import { Route as AppTenantSlugPurchasingOrdersRouteImport } from './routes/app.
 import { Route as AppTenantSlugPurchasingReceivingRouteImport } from './routes/app.$tenantSlug.purchasing.receiving'
 import { Route as AppTenantSlugPurchasingReturnsRouteImport } from './routes/app.$tenantSlug.purchasing.returns'
 import { Route as AppTenantSlugTeamIndexRouteImport } from './routes/app.$tenantSlug.team.index'
-import { Route as AppTenantSlugTeamAttendanceRouteImport } from './routes/app.$tenantSlug.team.attendance'
 import { Route as AppTenantSlugTeamRolesRouteImport } from './routes/app.$tenantSlug.team.roles'
-import { Route as AppTenantSlugTeamShiftsRouteImport } from './routes/app.$tenantSlug.team.shifts'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -297,20 +295,9 @@ const AppTenantSlugTeamIndexRoute = AppTenantSlugTeamIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppTenantSlugTeamRoute,
 } as any)
-const AppTenantSlugTeamAttendanceRoute =
-  AppTenantSlugTeamAttendanceRouteImport.update({
-    id: '/attendance',
-    path: '/attendance',
-    getParentRoute: () => AppTenantSlugTeamRoute,
-  } as any)
 const AppTenantSlugTeamRolesRoute = AppTenantSlugTeamRolesRouteImport.update({
   id: '/roles',
   path: '/roles',
-  getParentRoute: () => AppTenantSlugTeamRoute,
-} as any)
-const AppTenantSlugTeamShiftsRoute = AppTenantSlugTeamShiftsRouteImport.update({
-  id: '/shifts',
-  path: '/shifts',
   getParentRoute: () => AppTenantSlugTeamRoute,
 } as any)
 
@@ -356,9 +343,7 @@ export interface FileRoutesByFullPath {
   '/app/$tenantSlug/purchasing/orders': typeof AppTenantSlugPurchasingOrdersRoute
   '/app/$tenantSlug/purchasing/receiving': typeof AppTenantSlugPurchasingReceivingRoute
   '/app/$tenantSlug/purchasing/returns': typeof AppTenantSlugPurchasingReturnsRoute
-  '/app/$tenantSlug/team/attendance': typeof AppTenantSlugTeamAttendanceRoute
   '/app/$tenantSlug/team/roles': typeof AppTenantSlugTeamRolesRoute
-  '/app/$tenantSlug/team/shifts': typeof AppTenantSlugTeamShiftsRoute
   '/app/$tenantSlug/finance/': typeof AppTenantSlugFinanceIndexRoute
   '/app/$tenantSlug/inventory/': typeof AppTenantSlugInventoryIndexRoute
   '/app/$tenantSlug/menu/': typeof AppTenantSlugMenuIndexRoute
@@ -401,9 +386,7 @@ export interface FileRoutesByTo {
   '/app/$tenantSlug/purchasing/orders': typeof AppTenantSlugPurchasingOrdersRoute
   '/app/$tenantSlug/purchasing/receiving': typeof AppTenantSlugPurchasingReceivingRoute
   '/app/$tenantSlug/purchasing/returns': typeof AppTenantSlugPurchasingReturnsRoute
-  '/app/$tenantSlug/team/attendance': typeof AppTenantSlugTeamAttendanceRoute
   '/app/$tenantSlug/team/roles': typeof AppTenantSlugTeamRolesRoute
-  '/app/$tenantSlug/team/shifts': typeof AppTenantSlugTeamShiftsRoute
   '/app/$tenantSlug/finance': typeof AppTenantSlugFinanceIndexRoute
   '/app/$tenantSlug/inventory': typeof AppTenantSlugInventoryIndexRoute
   '/app/$tenantSlug/menu': typeof AppTenantSlugMenuIndexRoute
@@ -452,9 +435,7 @@ export interface FileRoutesById {
   '/app/$tenantSlug/purchasing/orders': typeof AppTenantSlugPurchasingOrdersRoute
   '/app/$tenantSlug/purchasing/receiving': typeof AppTenantSlugPurchasingReceivingRoute
   '/app/$tenantSlug/purchasing/returns': typeof AppTenantSlugPurchasingReturnsRoute
-  '/app/$tenantSlug/team/attendance': typeof AppTenantSlugTeamAttendanceRoute
   '/app/$tenantSlug/team/roles': typeof AppTenantSlugTeamRolesRoute
-  '/app/$tenantSlug/team/shifts': typeof AppTenantSlugTeamShiftsRoute
   '/app/$tenantSlug/finance/': typeof AppTenantSlugFinanceIndexRoute
   '/app/$tenantSlug/inventory/': typeof AppTenantSlugInventoryIndexRoute
   '/app/$tenantSlug/menu/': typeof AppTenantSlugMenuIndexRoute
@@ -504,9 +485,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/purchasing/orders'
     | '/app/$tenantSlug/purchasing/receiving'
     | '/app/$tenantSlug/purchasing/returns'
-    | '/app/$tenantSlug/team/attendance'
     | '/app/$tenantSlug/team/roles'
-    | '/app/$tenantSlug/team/shifts'
     | '/app/$tenantSlug/finance/'
     | '/app/$tenantSlug/inventory/'
     | '/app/$tenantSlug/menu/'
@@ -549,9 +528,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/purchasing/orders'
     | '/app/$tenantSlug/purchasing/receiving'
     | '/app/$tenantSlug/purchasing/returns'
-    | '/app/$tenantSlug/team/attendance'
     | '/app/$tenantSlug/team/roles'
-    | '/app/$tenantSlug/team/shifts'
     | '/app/$tenantSlug/finance'
     | '/app/$tenantSlug/inventory'
     | '/app/$tenantSlug/menu'
@@ -599,9 +576,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/purchasing/orders'
     | '/app/$tenantSlug/purchasing/receiving'
     | '/app/$tenantSlug/purchasing/returns'
-    | '/app/$tenantSlug/team/attendance'
     | '/app/$tenantSlug/team/roles'
-    | '/app/$tenantSlug/team/shifts'
     | '/app/$tenantSlug/finance/'
     | '/app/$tenantSlug/inventory/'
     | '/app/$tenantSlug/menu/'
@@ -937,25 +912,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantSlugTeamIndexRouteImport
       parentRoute: typeof AppTenantSlugTeamRoute
     }
-    '/app/$tenantSlug/team/attendance': {
-      id: '/app/$tenantSlug/team/attendance'
-      path: '/attendance'
-      fullPath: '/app/$tenantSlug/team/attendance'
-      preLoaderRoute: typeof AppTenantSlugTeamAttendanceRouteImport
-      parentRoute: typeof AppTenantSlugTeamRoute
-    }
     '/app/$tenantSlug/team/roles': {
       id: '/app/$tenantSlug/team/roles'
       path: '/roles'
       fullPath: '/app/$tenantSlug/team/roles'
       preLoaderRoute: typeof AppTenantSlugTeamRolesRouteImport
-      parentRoute: typeof AppTenantSlugTeamRoute
-    }
-    '/app/$tenantSlug/team/shifts': {
-      id: '/app/$tenantSlug/team/shifts'
-      path: '/shifts'
-      fullPath: '/app/$tenantSlug/team/shifts'
-      preLoaderRoute: typeof AppTenantSlugTeamShiftsRouteImport
       parentRoute: typeof AppTenantSlugTeamRoute
     }
   }
@@ -1025,16 +986,12 @@ const AppTenantSlugOrdersRouteWithChildren =
   AppTenantSlugOrdersRoute._addFileChildren(AppTenantSlugOrdersRouteChildren)
 
 interface AppTenantSlugTeamRouteChildren {
-  AppTenantSlugTeamAttendanceRoute: typeof AppTenantSlugTeamAttendanceRoute
   AppTenantSlugTeamRolesRoute: typeof AppTenantSlugTeamRolesRoute
-  AppTenantSlugTeamShiftsRoute: typeof AppTenantSlugTeamShiftsRoute
   AppTenantSlugTeamIndexRoute: typeof AppTenantSlugTeamIndexRoute
 }
 
 const AppTenantSlugTeamRouteChildren: AppTenantSlugTeamRouteChildren = {
-  AppTenantSlugTeamAttendanceRoute: AppTenantSlugTeamAttendanceRoute,
   AppTenantSlugTeamRolesRoute: AppTenantSlugTeamRolesRoute,
-  AppTenantSlugTeamShiftsRoute: AppTenantSlugTeamShiftsRoute,
   AppTenantSlugTeamIndexRoute: AppTenantSlugTeamIndexRoute,
 }
 

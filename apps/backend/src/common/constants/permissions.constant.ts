@@ -36,8 +36,6 @@ export enum Permission {
   EXPENSES_MANAGE = 'expenses.manage',
   STAFF_MANAGE = 'staff.manage',
   ROLES_VIEW = 'roles.view',
-  SHIFTS_MANAGE = 'shifts.manage',
-  ATTENDANCE_SELF = 'attendance.self',
   BRANCHES_MANAGE = 'branches.manage',
   PROMOTIONS_MANAGE = 'promotions.manage',
   SETTINGS_MANAGE = 'settings.manage',
@@ -68,13 +66,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.KITCHEN_VIEW,
     Permission.CUSTOMERS_MANAGE,
     Permission.DELIVERY_MANAGE,
-    Permission.ATTENDANCE_SELF,
   ],
 
   [UserRole.KITCHEN]: [
     Permission.KITCHEN_VIEW,
     Permission.ORDERS_VIEW,
-    Permission.ATTENDANCE_SELF,
   ],
 
   [UserRole.WAITER]: [
@@ -84,6 +80,5 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.TABLES_VIEW,
     Permission.TABLES_MANAGE,
     Permission.RESERVATIONS_MANAGE,
-    Permission.ATTENDANCE_SELF,
   ],
 };

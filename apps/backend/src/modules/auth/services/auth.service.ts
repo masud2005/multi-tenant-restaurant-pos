@@ -5,10 +5,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
-import { UserStatus } from '../../../../prisma/generated/client';
+import { UserRole, UserStatus } from '../../../../prisma/generated/client';
 import { ResponseHelper } from '../../../common/helpers/response.helper';
 import {
     InvalidCredentialsException,
+    NotFoundException,
     UnauthorizedException,
 } from '../../../common/exceptions/business.exception';
 import { ConfigService } from '@nestjs/config';
@@ -143,5 +144,89 @@ export class AuthService {
         });
 
         return ResponseHelper.success(null, 'Logged out successfully');
+    }
+
+
+    async getMyTenants(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                staffMembers: {
+                    where: {
+                        isDeleted: false,
+                        active: true,
+                    },
+                    include: {
+                        tenant: true,
+                    },
+                },
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User');
+        }
+
+        // Platform OWNER has access to all tenants across the workspace
+        if (user.role === UserRole.OWNER) {
+            const allTenants = await this.prisma.tenant.findMany({
+                orderBy: { name: 'asc' },
+            });
+
+            return allTenants.map((t) => ({
+                id: t.id,
+                slug: t.slug,
+                name: t.name,
+                tagline: t.tagline || '',
+                initials: t.initials || '',
+                accent: t.accent || 'oklch(0.6 0.2 240)',
+                currency: t.currency,
+                locale: t.locale,
+                taxRate: t.taxRate,
+                serviceChargeRate: t.serviceChargeRate,
+                receiptFooter: t.receiptFooter || '',
+                role: 'owner',
+                status: 'ACTIVE',
+            }));
+        }
+
+        // For staff members, find tenants by direct staff link or email matching
+        const staffRecords = await this.prisma.staffMember.findMany({
+            where: {
+                OR: [
+                    { userId: user.id },
+                    ...(user.email ? [{ email: { equals: user.email, mode: 'insensitive' as const } }] : []),
+                ],
+                isDeleted: false,
+                active: true,
+            },
+            include: {
+                tenant: true,
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        const tenantMap = new Map<string, any>();
+        for (const record of staffRecords) {
+            if (record.tenant && !tenantMap.has(record.tenant.id)) {
+                tenantMap.set(record.tenant.id, {
+                    id: record.tenant.id,
+                    slug: record.tenant.slug,
+                    name: record.tenant.name,
+                    tagline: record.tenant.tagline || '',
+                    initials: record.tenant.initials || '',
+                    accent: record.tenant.accent || 'oklch(0.6 0.2 240)',
+                    currency: record.tenant.currency,
+                    locale: record.tenant.locale,
+                    taxRate: record.tenant.taxRate,
+                    serviceChargeRate: record.tenant.serviceChargeRate,
+                    receiptFooter: record.tenant.receiptFooter || '',
+                    role: record.role ? record.role.toLowerCase() : 'waiter',
+                    status: record.status || 'ACTIVE',
+                });
+            }
+        }
+
+        return Array.from(tenantMap.values());
     }
 }

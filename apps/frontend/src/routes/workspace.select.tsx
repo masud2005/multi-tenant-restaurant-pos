@@ -6,11 +6,11 @@ import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorState, MockNotice } from "@/components/common/states";
+import { ErrorState } from "@/components/common/states";
 import { ROLE_LABELS } from "@/config/permissions.config";
 import { simulateActivation } from "@/services/platform.service";
 import { landingPathFor } from "@/features/tenant/landing";
-import type { ActivationStatus, Tenant, User } from "@/types/domain";
+import type { ActivationStatus, Tenant, User, RoleId } from "@/types/domain";
 
 export const Route = createFileRoute("/workspace/select")({
   head: () => ({
@@ -43,10 +43,8 @@ function SelectWorkspace({ user }: { user: User }) {
       <ul className="space-y-3">
         {tenants.data?.map((t) => <TenantRow key={t.id} tenant={t} user={user} />)}
       </ul>
-      <div className="mt-8">
-        <MockNotice>
-          Access status comes from the separate subscription application (simulated). Use the status buttons to test active, grace and inactive behaviour.
-        </MockNotice>
+      <div className="mt-8 rounded-lg border border-border/40 bg-muted/20 p-4 text-xs text-muted-foreground">
+        Workspace access is synchronized directly with your account credentials and role assignments on the server.
       </div>
     </div>
   );
@@ -62,7 +60,7 @@ function TenantRow({ tenant, user }: { tenant: Tenant; user: User }) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const activation = useActivationQuery(tenant.id);
-  const role = user.memberships.find((m) => m.tenantId === tenant.id)!.role;
+  const role: RoleId = (user.memberships.find((m) => m.tenantId === tenant.id)?.role ?? (tenant as any).role ?? "waiter") as RoleId;
   const status = activation.data?.status;
 
   const open = () => {
@@ -83,7 +81,7 @@ function TenantRow({ tenant, user }: { tenant: Tenant; user: User }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">{tenant.name}</span>
-          <span className="block text-sm text-muted-foreground">{tenant.tagline} · {ROLE_LABELS[role]}</span>
+          <span className="block text-sm text-muted-foreground">{tenant.tagline} · {ROLE_LABELS[role] || role}</span>
         </span>
         {status ? <Badge variant={STATUS_BADGE[status].variant}>{STATUS_BADGE[status].label}</Badge> : <Skeleton className="h-5 w-16" />}
         <ChevronRight className="size-4 text-muted-foreground" aria-hidden />

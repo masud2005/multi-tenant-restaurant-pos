@@ -54,6 +54,18 @@ export class AuthController {
         return this.authService.logout(user.id);
     }
 
+    @Get('me/tenants')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Get all restaurant workspaces accessible to current user' })
+    @ApiResponse({ status: 200, description: 'List of accessible tenants retrieved successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async getMyTenants(@CurrentUser() user: any) {
+        const tenants = await this.authService.getMyTenants(user.id);
+        return ResponseHelper.success(tenants, 'Accessible workspaces retrieved successfully');
+    }
+
     @Get('invite/:token')
     @ApiOperation({ summary: 'Get invitation details by token (Public)' })
     @ApiResponse({ status: 200, description: 'Invitation details retrieved' })

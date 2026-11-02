@@ -107,13 +107,134 @@ export async function getUser(userId: string): Promise<User> {
 }
 
 
-export async function requestPasswordReset(email: string): Promise<{ ok: true }> {
-  await latency(400, 700);
-  void email;
-  return { ok: true };
+export interface PasswordResetResponse {
+  ok: boolean;
+  message?: string;
+  emailSent?: boolean;
+  resetUrl?: string;
+  token?: string;
+}
+
+export async function requestPasswordReset(email: string): Promise<PasswordResetResponse> {
+  try {
+    const res = await backendFetch<{
+      message: string;
+      emailSent?: boolean;
+      resetUrl?: string;
+      token?: string;
+    }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email: email.trim() }),
+    });
+
+    return {
+      ok: true,
+      message: res.message,
+      emailSent: res.emailSent,
+      resetUrl: res.resetUrl,
+      token: res.token,
+    };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for password reset request, falling back to local simulation");
+      await latency(400, 700);
+      return { ok: true, message: "If an account exists for this email, a reset link is on its way." };
+    }
+    throw err;
+  }
+}
+
+export async function validateResetToken(token: string): Promise<{ valid: boolean; email?: string }> {
+  try {
+    const res = await backendFetch<{ valid: boolean; email?: string }>(
+      `/auth/reset-password/validate?token=${encodeURIComponent(token)}`
+    );
+    return res;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for token validation, falling back to local simulation");
+      return { valid: true };
+    }
+    throw err;
+  }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  try {
+    const res = await backendFetch<{ message?: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword }),
+    });
+    return {
+      message: res?.message || "Password has been reset successfully. You can now sign in.",
+    };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for password reset, falling back to local simulation");
+      await latency(400, 700);
+      return { message: "Password updated successfully." };
+    }
+    throw err;
+  }
 }
 
 export async function listTenantsForUser(userId: string): Promise<Tenant[]> {
+  try {
+    const backendTenants = await backendFetch<any[]>("/auth/me/tenants");
+    if (Array.isArray(backendTenants) && backendTenants.length > 0) {
+      const user = USERS.find((u) => u.id === userId);
+      const mapped: Tenant[] = backendTenants.map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        tagline: t.tagline || "",
+        initials: t.initials || (t.name ? t.name.slice(0, 2).toUpperCase() : "TW"),
+        accent: t.accent || "oklch(0.6 0.2 240)",
+        currency: t.currency || "BDT",
+        locale: t.locale || "en-BD",
+        taxRate: t.taxRate ?? 0.1,
+        serviceChargeRate: t.serviceChargeRate ?? 0.0,
+        receiptFooter: t.receiptFooter || "Thank you for dining with us!",
+      }));
+
+      // Sync user memberships in local cache with real accessible tenants
+      if (user) {
+        for (const t of backendTenants) {
+          const role = (t.role?.toLowerCase() || user.memberships[0]?.role || "waiter") as RoleId;
+          const existing = user.memberships.find((m) => m.tenantId === t.id);
+          if (existing) {
+            existing.role = role;
+          } else {
+            user.memberships.push({
+              tenantId: t.id,
+              role,
+              branchIds: "all",
+            });
+          }
+        }
+        registerUser(user);
+      }
+
+      // Ensure TENANTS store holds the real tenants
+      for (const m of mapped) {
+        const idx = TENANTS.findIndex((x) => x.id === m.id || x.slug === m.slug);
+        if (idx >= 0) {
+          TENANTS[idx] = m;
+        } else {
+          TENANTS.push(m);
+        }
+      }
+
+      return mapped;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 503 || err.status === 401)) {
+      console.warn("Backend unavailable or unauthenticated for tenants, falling back to local store");
+    } else {
+      throw err;
+    }
+  }
+
   await latency(80, 200);
   const user = USERS.find((u) => u.id === userId);
   if (!user) throw new ApiError(401, "Session expired.");
@@ -121,6 +242,28 @@ export async function listTenantsForUser(userId: string): Promise<Tenant[]> {
 }
 
 export async function listBranches(tenantId: string, userId: string): Promise<Branch[]> {
+  try {
+    const res = await backendFetch<any[]>(`/tenants/${tenantId}/branches`);
+    if (Array.isArray(res) && res.length > 0) {
+      const branches: Branch[] = res.map((b) => ({
+        id: b.id,
+        tenantId: b.tenantId || tenantId,
+        name: b.name,
+        address: b.address || "",
+        phone: b.phone || "",
+      }));
+      const db = tenantDb(tenantId);
+      db.branches = branches;
+      return branches;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      console.warn("Backend unavailable for branches, falling back to local DB");
+    } else {
+      throw err;
+    }
+  }
+
   await latency(60, 150);
   const user = USERS.find((u) => u.id === userId);
   const m = user?.memberships.find((x) => x.tenantId === tenantId);

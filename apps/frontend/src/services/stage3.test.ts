@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetTenantDb, tenantDb } from "@/mocks/db";
 import { addPayment, advanceKitchen, cancelOrder, createOrder } from "./operations.service";
 import { refundOrder, openCashSession, addCashEntry, closeCashSession, createExpense, updateDelivery } from "./money.service";
-import { saveReservation, saveShift, saveStaff, setReservationStatus, toggleClock, tierFor } from "./people.service";
+import { saveReservation, saveStaff, setReservationStatus, tierFor } from "./people.service";
 import type { OrderLine } from "@/types/domain";
 
 const T = "t_saffron";
@@ -79,22 +79,9 @@ describe("stage 3 rules", () => {
     await expect(setReservationStatus(T, r.id, "seated")).rejects.toThrow();
   });
 
-  it("shifts must end after start and not overlap for the same person", async () => {
-    const s = tenantDb(T).staff.find((x) => x.role === "manager")!;
-    await expect(saveShift(T, { branchId: B, staffId: s.id, date: "2030-01-01", start: "18:00", end: "10:00", notes: "" })).rejects.toThrow(/end after/);
-    await saveShift(T, { branchId: B, staffId: s.id, date: "2030-01-01", start: "09:00", end: "17:00", notes: "" });
-    await expect(saveShift(T, { branchId: B, staffId: s.id, date: "2030-01-01", start: "16:00", end: "20:00", notes: "" })).rejects.toThrow(/already works/);
-  });
-
   it("the last active owner can't be demoted", async () => {
     const owner = tenantDb(T).staff.find((x) => x.role === "owner")!;
     await expect(saveStaff(T, { ...owner, role: "manager" })).rejects.toThrow(/owner/);
-  });
-
-  it("clock in then out records one attendance entry", async () => {
-    const a = await toggleClock(T, { userId: "u_cashier", branchId: B });
-    expect(a.clockOut).toBeNull();
-    expect((await toggleClock(T, { userId: "u_cashier", branchId: B })).clockOut).not.toBeNull();
   });
 
   it("delivery needs an address and can't dispatch before the kitchen is ready", async () => {
