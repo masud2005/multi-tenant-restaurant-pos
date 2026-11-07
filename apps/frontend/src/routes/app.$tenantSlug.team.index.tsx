@@ -253,17 +253,6 @@ function StaffDirectoryPage() {
               className="pl-9 h-9"
             />
           </div>
-
-          {/* Action Button */}
-          {canEdit && (
-            <Button
-              onClick={() => setEditingStaff("new")}
-              size="sm"
-              className="gap-1.5 font-medium shadow-xs shrink-0"
-            >
-              <Plus className="size-4" /> Add staff member
-            </Button>
-          )}
         </div>
 
         {/* Multi-Filters Row */}
@@ -418,25 +407,17 @@ function StaffDirectoryPage() {
                   </div>
                 </div>,
 
-                // Role badge & custom role indicator
+                // Role badge
                 <div key="role" className="py-1">
-                  {s.customRoleName ? (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 font-medium"
-                      title={`Custom Role based on ${ROLE_LABELS[s.role] || s.role}`}
-                    >
-                      <Sparkles className="size-3 text-purple-500" />
-                      {s.customRoleName}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className={cn("font-medium", ROLE_BADGE_COLORS[s.role] || ROLE_BADGE_COLORS.waiter)}
-                    >
-                      {ROLE_LABELS[s.role] || s.role}
-                    </Badge>
-                  )}
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-medium",
+                      ROLE_BADGE_COLORS[s.role] || ROLE_BADGE_COLORS.waiter
+                    )}
+                  >
+                    {s.customRoleName || ROLE_LABELS[s.role] || s.role}
+                  </Badge>
                 </div>,
 
                 // Branch access

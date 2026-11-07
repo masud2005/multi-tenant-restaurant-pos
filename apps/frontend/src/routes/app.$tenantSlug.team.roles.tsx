@@ -1,9 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import {
   AlertCircle,
   Check,
-  Info,
   Loader2,
   Lock,
   Pencil,
@@ -13,7 +12,6 @@ import {
   Search,
   Shield,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Undo2,
   Users,
@@ -49,6 +47,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -85,31 +91,31 @@ export const Route = createFileRoute("/app/$tenantSlug/team/roles")({
 const ALL_SYSTEM_ROLES: RoleId[] = ["owner", "manager", "cashier", "waiter", "kitchen"];
 const CONFIGURABLE_STAFF_ROLES: RoleId[] = ["manager", "cashier", "waiter", "kitchen"];
 
-const ROLE_DETAILS: Record<RoleId, { description: string; color: string; badge: string }> = {
+const ROLE_DETAILS: Record<RoleId, { description: string; color: string; dot: string }> = {
   owner: {
     description: "Full unrestricted access across all branches, financials, staff, and system configurations.",
     color: "bg-primary/10 text-primary border-primary/20",
-    badge: "bg-primary/15 text-primary border-primary/30",
+    dot: "bg-primary",
   },
   manager: {
     description: "Branch operations leader managing POS, kitchen, menu, inventory, discounts, and reporting.",
     color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-    badge: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+    dot: "bg-amber-500",
   },
   cashier: {
     description: "Front-desk counter staff handling POS terminal, orders, payments, discounts, and cash drawer.",
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-    badge: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+    dot: "bg-blue-500",
   },
   waiter: {
     description: "Floor service staff managing table occupancy, taking dine-in orders, and booking reservations.",
     color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
-    badge: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+    dot: "bg-purple-500",
   },
   kitchen: {
     description: "Back-of-house kitchen display station for line cooks tracking live order tickets and food preparation.",
     color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    badge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+    dot: "bg-emerald-500",
   },
 };
 
@@ -120,6 +126,8 @@ const ROLE_COLOR_PRESETS: { id: string; label: string; badge: string; dot: strin
   { id: "teal", label: "Teal", badge: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20", dot: "bg-teal-500" },
   { id: "amber", label: "Amber", badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20", dot: "bg-amber-500" },
   { id: "rose", label: "Rose", badge: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20", dot: "bg-rose-500" },
+  { id: "emerald", label: "Emerald", badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20", dot: "bg-emerald-500" },
+  { id: "blue", label: "Blue", badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20", dot: "bg-blue-500" },
 ];
 
 const PERMISSION_GROUPS: { name: string; perms: Permission[] }[] = [
@@ -158,12 +166,38 @@ const PERMISSION_GROUPS: { name: string; perms: Permission[] }[] = [
   },
 ];
 
+interface EditableRole {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  isSystem: boolean;
+  isOwner: boolean;
+  rawRole?: RoleId;
+  rawCustom?: CustomRole;
+}
+
+interface RoleItem {
+  id: string;
+  isSystem: boolean;
+  name: string;
+  description: string;
+  permsCount: number;
+  staffCount: number;
+  badgeColor?: string;
+  dot?: string;
+  color?: string;
+  isOwner: boolean;
+  rawRole?: RoleId;
+  rawCustom?: CustomRole;
+}
+
 function Roles() {
   const { tenant, user, role: currentRole, can } = useTenant();
   const canEdit = can("staff.manage");
   const staffQuery = useStaffQuery(tenant.id);
 
-  // Active Tab: "roles" or "permissions" (can be initialized from ?tab= URL search param)
+  // Active Tab: "roles" or "permissions"
   const [activeTab, setActiveTab] = useState<"roles" | "permissions">(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("tab");
@@ -194,6 +228,30 @@ function Roles() {
   const [customPermissionsMap, setCustomPermissionsMap] = useState<Record<string, Permission[]>>({});
   const [initialCustomMap, setInitialCustomMap] = useState<Record<string, Permission[]>>({});
 
+  // System role customizations (custom display name, description, color)
+  const [roleOverrides, setRoleOverrides] = useState<
+    Partial<Record<RoleId, { name?: string; description?: string; color?: string }>>
+  >(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem(`tablewise_role_overrides_${tenant.slug}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Deleted / hidden system roles (e.g. if the user deleted waiter or cashier)
+  const [hiddenRoles, setHiddenRoles] = useState<RoleId[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(`tablewise_hidden_roles_${tenant.slug}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Dialog state: Create Role
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleForm, setNewRoleForm] = useState<{
@@ -209,17 +267,15 @@ function Roles() {
   });
 
   // Dialog state: Edit / Update Role
-  const [editingRole, setEditingRole] = useState<CustomRole | null>(null);
+  const [editingRole, setEditingRole] = useState<EditableRole | null>(null);
   const [editRoleForm, setEditRoleForm] = useState<{
     name: string;
     description: string;
     color: string;
-    baseRole: RoleId;
   }>({
     name: "",
     description: "",
     color: "purple",
-    baseRole: "waiter",
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -320,12 +376,12 @@ function Roles() {
 
   // Compute changes in standard roles
   const changedStandardRoles = useMemo(() => {
-    return CONFIGURABLE_STAFF_ROLES.filter((r) => {
+    return CONFIGURABLE_STAFF_ROLES.filter((r) => !hiddenRoles.includes(r)).filter((r) => {
       const current = (permissionsMap[r] || []).slice().sort();
       const initial = (initialMap[r] || []).slice().sort();
       return JSON.stringify(current) !== JSON.stringify(initial);
     });
-  }, [permissionsMap, initialMap]);
+  }, [permissionsMap, initialMap, hiddenRoles]);
 
   // Compute changes in custom roles
   const changedCustomRoles = useMemo(() => {
@@ -369,7 +425,7 @@ function Roles() {
     toast.info("Unsaved permission changes discarded.");
   };
 
-  // Reset to default permissions
+  // Reset to default permissions and restore hidden roles
   const handleResetToDefaults = () => {
     setPermissionsMap({
       owner: [...ROLE_PERMISSIONS.owner],
@@ -378,7 +434,22 @@ function Roles() {
       kitchen: [...ROLE_PERMISSIONS.kitchen],
       waiter: [...ROLE_PERMISSIONS.waiter],
     });
-    toast.info("Permissions reset to defaults. Click 'Save changes' to apply to the database.");
+    setHiddenRoles([]);
+    setRoleOverrides({});
+    try {
+      localStorage.removeItem(`tablewise_hidden_roles_${tenant.slug}`);
+      localStorage.removeItem(`tablewise_role_overrides_${tenant.slug}`);
+    } catch {}
+    toast.info("Permissions and roles reset to defaults. Click 'Save changes' to sync to database.");
+  };
+
+  // Restore any deleted/hidden default roles
+  const handleRestoreDefaultRoles = () => {
+    setHiddenRoles([]);
+    try {
+      localStorage.removeItem(`tablewise_hidden_roles_${tenant.slug}`);
+    } catch {}
+    toast.success("Standard roles restored to list.");
   };
 
   // Save all modified permissions to backend & cache
@@ -413,7 +484,7 @@ function Roles() {
     }
   };
 
-  // Create custom role
+  // Create role
   const handleCreateRoleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newRoleForm.name.trim();
@@ -450,24 +521,38 @@ function Roles() {
 
       setIsCreatingRole(false);
       setNewRoleForm({ name: "", description: "", baseRole: "cashier", color: "purple" });
-      toast.success(`Custom role "${created.name}" created! You can now configure its permissions.`);
+      toast.success(`Role "${created.name}" created! You can now configure its permissions.`);
     } catch (err: any) {
-      toast.error(err?.message || "Failed to create custom role.");
+      toast.error(err?.message || "Failed to create role.");
     }
   };
 
-  // Open Edit Role modal
-  const handleStartEditRole = (role: CustomRole) => {
-    setEditingRole(role);
+  // Open Edit Role modal (works identically for all configurable roles)
+  const handleStartEditRole = (item: RoleItem) => {
+    if (item.isOwner) {
+      toast.info("Owner role is the permanent superadmin root and cannot be modified.");
+      return;
+    }
+
+    setEditingRole({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      color: item.color || "purple",
+      isSystem: item.isSystem,
+      isOwner: item.isOwner,
+      rawRole: item.rawRole,
+      rawCustom: item.rawCustom,
+    });
+
     setEditRoleForm({
-      name: role.name,
-      description: role.description || "",
-      color: role.color || "purple",
-      baseRole: role.baseRole || "waiter",
+      name: item.name,
+      description: item.description || "",
+      color: item.color || "purple",
     });
   };
 
-  // Save Edited Role
+  // Save Edited Role (system role or custom role)
   const handleSaveEditedRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRole) return;
@@ -478,43 +563,79 @@ function Roles() {
     }
 
     try {
-      const currentPerms = customPermissionsMap[editingRole.id] || editingRole.permissions || [];
-      const updated = await saveCustomRole(tenant.slug, {
-        id: editingRole.id,
-        name,
-        description: editRoleForm.description.trim(),
-        color: editRoleForm.color,
-        baseRole: editRoleForm.baseRole,
-        permissions: currentPerms,
-      });
+      if (editingRole.isSystem && editingRole.rawRole) {
+        // Update system role override
+        const updatedOverrides = {
+          ...roleOverrides,
+          [editingRole.rawRole]: {
+            name,
+            description: editRoleForm.description.trim(),
+            color: editRoleForm.color,
+          },
+        };
+        setRoleOverrides(updatedOverrides);
+        try {
+          localStorage.setItem(`tablewise_role_overrides_${tenant.slug}`, JSON.stringify(updatedOverrides));
+        } catch {}
+        setEditingRole(null);
+        toast.success(`Role "${name}" updated successfully!`);
+      } else if (editingRole.rawCustom) {
+        // Update custom role via API
+        const currentPerms = customPermissionsMap[editingRole.id] || editingRole.rawCustom.permissions || [];
+        const updated = await saveCustomRole(tenant.slug, {
+          id: editingRole.id,
+          name,
+          description: editRoleForm.description.trim(),
+          color: editRoleForm.color,
+          baseRole: editingRole.rawCustom.baseRole,
+          permissions: currentPerms,
+        });
 
-      setCustomRoles((prev) => prev.map((r) => (r.id === editingRole.id ? updated : r)));
-      setEditingRole(null);
-      toast.success(`Role "${updated.name}" updated successfully!`);
+        setCustomRoles((prev) => prev.map((r) => (r.id === editingRole.id ? updated : r)));
+        setEditingRole(null);
+        toast.success(`Role "${updated.name}" updated successfully!`);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to update role.");
     }
   };
 
-  // Delete custom role
-  const handleDeleteRole = async (role: CustomRole) => {
+  // Delete role (supports custom roles and standard configurable roles identically)
+  const handleDeleteRole = async (item: RoleItem) => {
+    if (item.isOwner) {
+      toast.error("Owner role is permanent superadmin root and cannot be deleted.");
+      return;
+    }
+
     try {
-      await deleteCustomRole(tenant.slug, role.id);
-      setCustomRoles((prev) => prev.filter((r) => r.id !== role.id));
-      setCustomPermissionsMap((prev) => {
-        const next = { ...prev };
-        delete next[role.id];
-        return next;
-      });
-      setInitialCustomMap((prev) => {
-        const next = { ...prev };
-        delete next[role.id];
-        return next;
-      });
-      if (selectedRoleForMatrix === role.id) setSelectedRoleForMatrix("all");
-      toast.success(`Custom role "${role.name}" deleted.`);
+      if (item.isSystem && item.rawRole) {
+        // Hide standard role from tenant view
+        const nextHidden = [...hiddenRoles, item.rawRole];
+        setHiddenRoles(nextHidden);
+        try {
+          localStorage.setItem(`tablewise_hidden_roles_${tenant.slug}`, JSON.stringify(nextHidden));
+        } catch {}
+        if (selectedRoleForMatrix === item.id) setSelectedRoleForMatrix("all");
+        toast.success(`Role "${item.name}" deleted from your restaurant.`);
+      } else if (item.rawCustom) {
+        // Delete custom role via API
+        await deleteCustomRole(tenant.slug, item.id);
+        setCustomRoles((prev) => prev.filter((r) => r.id !== item.id));
+        setCustomPermissionsMap((prev) => {
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
+        setInitialCustomMap((prev) => {
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
+        if (selectedRoleForMatrix === item.id) setSelectedRoleForMatrix("all");
+        toast.success(`Role "${item.name}" deleted.`);
+      }
     } catch (err: any) {
-      toast.error(err?.message || "Failed to delete custom role.");
+      toast.error(err?.message || "Failed to delete role.");
     }
   };
 
@@ -524,9 +645,31 @@ function Roles() {
     setActiveTab("permissions");
   };
 
+  // Unified list of all configurable roles for the matrix
+  const allConfigurableRolesForMatrix = useMemo(() => {
+    const activeStaffRoles = CONFIGURABLE_STAFF_ROLES.filter((r) => !hiddenRoles.includes(r)).map((r) => ({
+      id: r,
+      isCustom: false as const,
+      rawRole: r,
+      name: roleOverrides[r]?.name || ROLE_LABELS[r],
+      permsCount: (permissionsMap[r] || []).length,
+    }));
+
+    const custom = customRoles.map((cr) => ({
+      id: cr.id,
+      isCustom: true as const,
+      rawRole: undefined as RoleId | undefined,
+      name: cr.name,
+      permsCount: (customPermissionsMap[cr.id] || []).length,
+    }));
+
+    return [...activeStaffRoles, ...custom];
+  }, [hiddenRoles, roleOverrides, permissionsMap, customRoles, customPermissionsMap]);
+
   // Filtered permission groups
   const filteredGroups = useMemo(() => {
     const q = permissionSearch.trim().toLowerCase();
+
     return PERMISSION_GROUPS.map((g) => {
       const perms = g.perms.filter((p) => {
         const label = PERMISSION_LABELS[p]?.toLowerCase() ?? "";
@@ -534,47 +677,83 @@ function Roles() {
 
         let matchesRole = true;
         if (selectedRoleForMatrix !== "all") {
-          if (selectedRoleForMatrix === "owner") {
-            matchesRole = true;
-          } else if (CONFIGURABLE_STAFF_ROLES.includes(selectedRoleForMatrix as RoleId)) {
-            matchesRole = (permissionsMap[selectedRoleForMatrix as RoleId] || []).includes(p);
-          } else {
-            matchesRole = (customPermissionsMap[selectedRoleForMatrix] || []).includes(p);
+          const targetRole = allConfigurableRolesForMatrix.find((r) => r.id === selectedRoleForMatrix);
+          if (targetRole) {
+            matchesRole = targetRole.isCustom
+              ? (customPermissionsMap[targetRole.id] || []).includes(p)
+              : (permissionsMap[targetRole.rawRole!] || []).includes(p);
           }
         }
         return matchesQuery && matchesRole;
       });
       return { ...g, perms };
     }).filter((g) => g.perms.length > 0);
-  }, [permissionSearch, selectedRoleForMatrix, permissionsMap, customPermissionsMap]);
+  }, [permissionSearch, selectedRoleForMatrix, permissionsMap, customPermissionsMap, allConfigurableRolesForMatrix]);
 
-  // Filtered roles list for Roles Tab
-  const filteredRolesList = useMemo(() => {
+  // Unified filtered roles list for Roles Tab (Table view)
+  const allRolesList = useMemo<RoleItem[]>(() => {
     const q = rolesSearch.trim().toLowerCase();
-    const system = ALL_SYSTEM_ROLES.filter((r) => {
-      if (!q) return true;
-      return (
-        ROLE_LABELS[r].toLowerCase().includes(q) ||
-        (ROLE_DETAILS[r]?.description || "").toLowerCase().includes(q)
-      );
+
+    // 1. System roles (excluding hidden ones)
+    const system: RoleItem[] = ALL_SYSTEM_ROLES
+      .filter((r) => !hiddenRoles.includes(r))
+      .map((r) => {
+        const override = roleOverrides[r];
+        const colorKey = override?.color || (r === "manager" ? "amber" : r === "cashier" ? "blue" : r === "kitchen" ? "emerald" : r === "waiter" ? "purple" : "purple");
+        const colorPreset = ROLE_COLOR_PRESETS.find((p) => p.id === colorKey);
+
+        return {
+          id: r,
+          isSystem: true as const,
+          name: override?.name || ROLE_LABELS[r],
+          description: override?.description || ROLE_DETAILS[r]?.description || "",
+          permsCount: r === "owner" ? 30 : (permissionsMap[r] || ROLE_PERMISSIONS[r] || []).length,
+          staffCount: staffCounts[r] || 0,
+          badgeColor: colorPreset?.badge || ROLE_DETAILS[r]?.color,
+          dot: colorPreset?.dot || ROLE_DETAILS[r]?.dot,
+          color: colorKey,
+          isOwner: r === "owner",
+          rawRole: r,
+          rawCustom: undefined,
+        };
+      });
+
+    // 2. Custom roles
+    const custom: RoleItem[] = customRoles.map((cr) => {
+      const colorPreset =
+        ROLE_COLOR_PRESETS.find((p) => p.id === cr.color) ?? ROLE_COLOR_PRESETS[0]!;
+      return {
+        id: cr.id,
+        isSystem: false as const,
+        name: cr.name,
+        description: cr.description || "Custom role configured for your restaurant team.",
+        permsCount: (customPermissionsMap[cr.id] || cr.permissions || []).length,
+        staffCount: staffCounts[cr.id] || 0,
+        badgeColor: colorPreset.badge,
+        dot: colorPreset.dot,
+        color: cr.color,
+        isOwner: false,
+        rawRole: undefined,
+        rawCustom: cr,
+      };
     });
-    const custom = customRoles.filter((cr) => {
-      if (!q) return true;
-      return (
-        cr.name.toLowerCase().includes(q) ||
-        (cr.description || "").toLowerCase().includes(q) ||
-        ROLE_LABELS[cr.baseRole]?.toLowerCase().includes(q)
-      );
-    });
-    return { system, custom };
-  }, [rolesSearch, customRoles]);
+
+    const combined = [...system, ...custom];
+    if (!q) return combined;
+
+    return combined.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q)
+    );
+  }, [rolesSearch, customRoles, permissionsMap, customPermissionsMap, staffCounts, hiddenRoles, roleOverrides]);
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
       <PageHeader
         title="Roles & Permissions"
-        description="Manage restaurant roles, create custom positions, and configure permission access matrices."
+        description="Manage restaurant roles, create new positions, and configure permission access matrices."
         actions={
           <div className="flex items-center gap-2">
             {activeTab === "roles" && canEdit && (
@@ -641,7 +820,7 @@ function Roles() {
           <TabsList className="grid w-full sm:w-[340px] grid-cols-2 h-10 p-1">
             <TabsTrigger value="roles" className="gap-2 text-xs sm:text-sm font-semibold">
               <Users className="size-4" />
-              <span>Roles ({ALL_SYSTEM_ROLES.length + customRoles.length})</span>
+              <span>Roles ({allRolesList.length})</span>
             </TabsTrigger>
             <TabsTrigger value="permissions" className="gap-2 text-xs sm:text-sm font-semibold">
               <Shield className="size-4" />
@@ -660,7 +839,7 @@ function Roles() {
         </div>
 
         {/* ============================================================== */}
-        {/* TAB 1: ROLES MANAGEMENT                                        */}
+        {/* TAB 1: ROLES MANAGEMENT (TABLE VIEW)                           */}
         {/* ============================================================== */}
         <TabsContent value="roles" className="space-y-6 m-0 focus-visible:outline-hidden">
           {/* Roles Filter & Search Toolbar */}
@@ -676,240 +855,167 @@ function Roles() {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs font-normal">
-                {ALL_SYSTEM_ROLES.length} System roles
+                {allRolesList.length} roles
               </Badge>
-              <Badge variant="outline" className="text-xs font-normal border-purple-500/30 text-purple-600 dark:text-purple-400">
-                {customRoles.length} Custom roles
-              </Badge>
-            </div>
-          </div>
-
-          {/* 1. System Default Roles */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  System Roles ({filteredRolesList.system.length})
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Default core roles configured for restaurant operations.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredRolesList.system.map((r) => {
-                const count = staffCounts[r] || 0;
-                const permsCount = r === "owner" ? 30 : (permissionsMap[r] || ROLE_PERMISSIONS[r] || []).length;
-                const isOwner = r === "owner";
-
-                return (
-                  <div
-                    key={r}
-                    className="flex flex-col justify-between rounded-xl border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-xs"
-                  >
-                    <div>
-                      {/* Card Header */}
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-base text-foreground">
-                            {ROLE_LABELS[r]}
-                          </span>
-                          {isOwner && (
-                            <Badge className="text-[10px] px-1.5 py-0 h-4 bg-primary text-primary-foreground font-semibold">
-                              Owner
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge variant="outline" className={cn("text-xs font-medium", ROLE_DETAILS[r]?.color)}>
-                          {permsCount} perms
-                        </Badge>
-                      </div>
-
-                      {/* Description */}
-                      <p className="text-xs text-muted-foreground leading-relaxed min-h-[36px]">
-                        {ROLE_DETAILS[r]?.description}
-                      </p>
-
-                      {/* Staff Assigned count pill */}
-                      <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/30 px-2.5 py-1.5 rounded-lg border border-border/40">
-                        <Users className="size-3.5 text-primary" />
-                        <span>
-                          <strong>{count}</strong> {count === 1 ? "staff assigned" : "staff members assigned"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card Actions */}
-                    <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                        {isOwner ? (
-                          <>
-                            <Lock className="size-3 text-muted-foreground" />
-                            Permanent Root
-                          </>
-                        ) : (
-                          "System Protected"
-                        )}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleFocusRoleInPermissions(r)}
-                        className="h-7 text-xs px-2.5 font-medium hover:text-primary hover:bg-primary/10"
-                      >
-                        <Shield className="size-3.5 mr-1 text-primary" />
-                        {isOwner ? "View permissions" : "Permissions"}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 2. Custom Roles */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                  <Sparkles className="size-4" />
-                  Custom Roles ({filteredRolesList.custom.length})
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Custom roles created specifically for your restaurant team with customized permissions.
-                </p>
-              </div>
-              {canEdit && (
+              {hiddenRoles.length > 0 && (
                 <Button
-                  onClick={() => setIsCreatingRole(true)}
-                  size="sm"
                   variant="outline"
-                  className="h-8 text-xs gap-1 border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+                  size="sm"
+                  onClick={handleRestoreDefaultRoles}
+                  className="h-7 text-xs gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
                 >
-                  <Plus className="size-3.5" /> New custom role
+                  <RotateCcw className="size-3" />
+                  Restore default roles ({hiddenRoles.length})
                 </Button>
               )}
             </div>
+          </div>
 
-            {filteredRolesList.custom.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border/80 bg-muted/10 p-8 text-center">
-                <Sparkles className="mx-auto size-8 text-purple-500/50 mb-2" />
-                <h4 className="text-sm font-semibold text-foreground">No custom roles created yet</h4>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 mb-4">
-                  Need a specialized position like Sommelier, Shift Lead, or Barista? Create custom roles with tailored capabilities.
-                </p>
-                {canEdit && (
-                  <Button
-                    onClick={() => setIsCreatingRole(true)}
-                    size="sm"
-                    className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Plus className="size-4" /> Create first custom role
+          {/* Unified Roles Table */}
+          {allRolesList.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/80 bg-muted/10 p-8 text-center">
+              <Users className="mx-auto size-8 text-muted-foreground/50 mb-2" />
+              <h4 className="text-sm font-semibold text-foreground">No roles match your search</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 mb-3">
+                Try clearing the search query or restoring default roles to view all configured restaurant positions.
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setRolesSearch("")}>
+                  Clear search
+                </Button>
+                {hiddenRoles.length > 0 && (
+                  <Button size="sm" onClick={handleRestoreDefaultRoles}>
+                    Restore default roles
                   </Button>
                 )}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredRolesList.custom.map((cr) => {
-                  const count = staffCounts[cr.id] || 0;
-                  const permsCount = (customPermissionsMap[cr.id] || cr.permissions || []).length;
-                  const colorPreset =
-                    ROLE_COLOR_PRESETS.find((p) => p.id === cr.color) ?? ROLE_COLOR_PRESETS[0]!;
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border bg-card shadow-2xs">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="w-[170px] font-semibold text-foreground">Role</TableHead>
+                    <TableHead className="w-[360px] max-w-[400px] font-semibold text-foreground">Description</TableHead>
+                    <TableHead className="w-[130px] text-center font-semibold text-foreground">Staff assigned</TableHead>
+                    <TableHead className="w-[160px] text-center font-semibold text-foreground">Permissions</TableHead>
+                    <TableHead className="w-[90px] text-right font-semibold text-foreground">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allRolesList.map((item) => (
+                    <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
+                      {/* Column 1: Role Name & Color Dot */}
+                      <TableCell className="align-middle">
+                        <div className="flex items-center gap-2.5">
+                          <span className={cn("size-2.5 rounded-full shrink-0", item.dot || "bg-primary")} />
+                          <span className="font-semibold text-foreground text-sm">{item.name}</span>
+                        </div>
+                      </TableCell>
 
-                  return (
-                    <div
-                      key={cr.id}
-                      className="flex flex-col justify-between rounded-xl border border-purple-500/20 bg-card p-4 transition-all hover:border-purple-500/50 hover:shadow-xs"
-                    >
-                      <div>
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("size-2.5 rounded-full shrink-0", colorPreset.dot)} />
-                            <span className="font-semibold text-base text-foreground">
-                              {cr.name}
+                      {/* Column 2: Description (Clean, compact width) */}
+                      <TableCell className="text-xs text-muted-foreground max-w-[360px] leading-relaxed align-middle" title={item.description}>
+                        {item.description}
+                      </TableCell>
+
+                      {/* Column 3: Staff Assigned */}
+                      <TableCell className="text-center align-middle">
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground border border-border/50">
+                          <Users className="size-3 text-primary" />
+                          <span>{item.staffCount} staff</span>
+                        </div>
+                      </TableCell>
+
+                      {/* Column 4: Permissions (Single unified button with count) */}
+                      <TableCell className="text-center align-middle">
+                        {item.isOwner ? (
+                          <div className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary border border-primary/20">
+                            <ShieldCheck className="size-3.5" />
+                            <span>Full access</span>
+                            <span className="rounded-full bg-primary/20 px-1.5 py-0.2 text-[10px] font-semibold">30</span>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFocusRoleInPermissions(item.id)}
+                            className="h-7 text-xs font-medium gap-1.5 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all cursor-pointer"
+                            title={`Click to view & configure permissions for ${item.name}`}
+                          >
+                            <Shield className="size-3.5 text-primary" />
+                            <span>Permissions</span>
+                            <span className="rounded-full bg-muted px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground border">
+                              {item.permsCount}
                             </span>
-                          </div>
-                          <Badge variant="outline" className={cn("text-xs font-medium", colorPreset.badge)}>
-                            {permsCount} perms
-                          </Badge>
-                        </div>
+                          </Button>
+                        )}
+                      </TableCell>
 
-                        {/* Description */}
-                        <p className="text-xs text-muted-foreground leading-relaxed min-h-[36px]">
-                          {cr.description || "No description provided."}
-                        </p>
-
-                        {/* Base role template & staff count */}
-                        <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground bg-muted/30 px-2.5 py-1.5 rounded-lg border border-border/40">
-                          <div className="flex items-center gap-1">
-                            <span>Base:</span>
-                            <Badge variant="secondary" className="text-[10px] h-4 px-1 font-medium">
-                              {ROLE_LABELS[cr.baseRole]}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-1 font-medium text-foreground">
-                            <Users className="size-3 text-primary" />
-                            <span>{count} staff</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions: Edit, Delete, Configure Permissions */}
-                      <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1">
+                      {/* Column 5: Actions (Only Edit & Delete, no duplicate permissions button) */}
+                      <TableCell className="text-right align-middle">
+                        <div className="flex items-center justify-end gap-1">
                           {canEdit && (
                             <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleStartEditRole(cr)}
-                                className="size-7 text-muted-foreground hover:text-foreground"
-                                title="Edit role details"
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-
-                              <Confirm
-                                title={`Delete role "${cr.name}"?`}
-                                body="Are you sure you want to delete this custom role? Staff members assigned to this role will need to be reassigned."
-                                confirmLabel="Delete role"
-                                onConfirm={() => handleDeleteRole(cr)}
-                              >
+                              {item.isOwner ? (
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="size-7 text-muted-foreground hover:text-destructive"
-                                  title="Delete custom role"
+                                  disabled
+                                  className="size-8 text-muted-foreground/40 cursor-not-allowed"
+                                  title="Owner role is permanent superadmin root"
                                 >
-                                  <Trash2 className="size-3.5" />
+                                  <Lock className="size-3.5 text-primary" />
                                 </Button>
-                              </Confirm>
+                              ) : (
+                                <>
+                                  {/* Edit role button */}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleStartEditRole(item)}
+                                    className="size-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    title={`Edit role "${item.name}"`}
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </Button>
+
+                                  {/* Delete role button */}
+                                  <Confirm
+                                    title={`Delete role "${item.name}"?`}
+                                    body={
+                                      item.staffCount > 0
+                                        ? `Are you sure you want to delete the "${item.name}" role? There are currently ${item.staffCount} staff member(s) assigned to this role who will need to be reassigned.`
+                                        : `Are you sure you want to delete the "${item.name}" role?`
+                                    }
+                                    confirmLabel="Delete role"
+                                    variant="destructive"
+                                    onConfirm={() => handleDeleteRole(item)}
+                                  >
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                      title={`Delete role "${item.name}"`}
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
+                                  </Confirm>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFocusRoleInPermissions(cr.id)}
-                          className="h-7 text-xs px-2.5 font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
-                        >
-                          <Shield className="size-3.5 mr-1" />
-                          Permissions
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
 
         {/* ============================================================== */}
@@ -934,7 +1040,7 @@ function Roles() {
                 <span>
                   You have unsaved changes (
                   {[
-                    ...changedStandardRoles.map((r) => ROLE_LABELS[r]),
+                    ...changedStandardRoles.map((r) => roleOverrides[r]?.name || ROLE_LABELS[r]),
                     ...changedCustomRoles.map((cr) => cr.name),
                   ].join(", ")}
                   ). Click <strong>Save changes</strong> to update the database.
@@ -973,24 +1079,11 @@ function Roles() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All roles (Matrix view)</SelectItem>
-                    <SelectItem value="owner">Owner (Superadmin)</SelectItem>
-                    {CONFIGURABLE_STAFF_ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r]}
+                    {allConfigurableRolesForMatrix.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
                       </SelectItem>
                     ))}
-                    {customRoles.length > 0 && (
-                      <>
-                        <div className="px-2 py-1 text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase">
-                          Custom Roles
-                        </div>
-                        {customRoles.map((cr) => (
-                          <SelectItem key={cr.id} value={cr.id}>
-                            ✨ {cr.name}
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1032,50 +1125,23 @@ function Roles() {
                         <tr>
                           <th className="px-4 py-2.5 text-left font-medium min-w-[220px]">Capability</th>
 
-                          {/* Owner column */}
-                          {(selectedRoleForMatrix === "all" || selectedRoleForMatrix === "owner") && (
-                            <th className="px-3 py-2 text-center font-medium min-w-[100px] bg-primary/5 text-primary">
-                              <div>Owner</div>
-                              <div className="text-[10px] font-normal text-muted-foreground">
-                                30 perms (Root)
-                              </div>
-                            </th>
-                          )}
-
-                          {/* Standard Configurable Roles Columns */}
-                          {CONFIGURABLE_STAFF_ROLES.filter((r) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === r).map((r) => (
-                            <th
-                              key={r}
-                              className={cn(
-                                "px-3 py-2 text-center font-medium min-w-[100px]",
-                                selectedRoleForMatrix === r && "bg-primary/5 text-primary font-semibold"
-                              )}
-                            >
-                              <div>{ROLE_LABELS[r]}</div>
-                              <div className="text-[10px] font-normal text-muted-foreground">
-                                {(permissionsMap[r] || []).length} perms
-                              </div>
-                            </th>
-                          ))}
-
-                          {/* Custom Roles Columns */}
-                          {customRoles.filter((cr) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === cr.id).map((cr) => (
-                            <th
-                              key={cr.id}
-                              className={cn(
-                                "px-3 py-2 text-center font-medium min-w-[120px] bg-purple-500/5",
-                                selectedRoleForMatrix === cr.id && "bg-purple-500/15 text-purple-600 font-semibold"
-                              )}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                <Sparkles className="size-3 text-purple-500" />
-                                <span>{cr.name}</span>
-                              </div>
-                              <div className="text-[10px] font-normal text-muted-foreground">
-                                {(customPermissionsMap[cr.id] || []).length} perms
-                              </div>
-                            </th>
-                          ))}
+                          {/* Unified Columns for All Configurable Roles (Identical styling) */}
+                          {allConfigurableRolesForMatrix
+                            .filter((r) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === r.id)
+                            .map((role) => (
+                              <th
+                                key={role.id}
+                                className={cn(
+                                  "px-3 py-2 text-center font-medium min-w-[110px]",
+                                  selectedRoleForMatrix === role.id && "bg-primary/5 text-primary font-semibold"
+                                )}
+                              >
+                                <div>{role.name}</div>
+                                <div className="text-[10px] font-normal text-muted-foreground">
+                                  {role.permsCount} perms
+                                </div>
+                              </th>
+                            ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -1086,95 +1152,51 @@ function Roles() {
                               <span className="text-[11px] font-mono text-muted-foreground/70">{p}</span>
                             </td>
 
-                            {/* Owner Checkbox (Permanent Full Access) */}
-                            {(selectedRoleForMatrix === "all" || selectedRoleForMatrix === "owner") && (
-                              <td className="px-3 py-2 text-center align-middle bg-primary/5">
-                                <div className="flex items-center justify-center">
-                                  <div
-                                    className="size-6 rounded-md bg-emerald-600/80 text-white flex items-center justify-center shadow-xs cursor-default"
-                                    title="Permanent root privileges: Owner cannot be revoked."
+                            {/* Unified Checkboxes for All Configurable Roles */}
+                            {allConfigurableRolesForMatrix
+                              .filter((r) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === r.id)
+                              .map((role) => {
+                                const allowed = role.isCustom
+                                  ? (customPermissionsMap[role.id] || []).includes(p)
+                                  : (permissionsMap[role.rawRole!] || []).includes(p);
+                                const isHighlighted = selectedRoleForMatrix === role.id;
+
+                                return (
+                                  <td
+                                    key={role.id}
+                                    className={cn(
+                                      "px-3 py-2 text-center align-middle",
+                                      isHighlighted && "bg-primary/5"
+                                    )}
                                   >
-                                    <Check className="size-3.5 stroke-[3]" />
-                                  </div>
-                                </div>
-                              </td>
-                            )}
-
-                            {/* Standard Roles Checkboxes */}
-                            {CONFIGURABLE_STAFF_ROLES.filter((r) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === r).map((r) => {
-                              const allowed = (permissionsMap[r] || []).includes(p);
-                              const isHighlighted = selectedRoleForMatrix === r;
-
-                              return (
-                                <td
-                                  key={r}
-                                  className={cn(
-                                    "px-3 py-2 text-center align-middle",
-                                    isHighlighted && "bg-primary/5"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      disabled={!canEdit || isSaving}
-                                      onClick={() => togglePermission(r, p)}
-                                      className={cn(
-                                        "group relative inline-flex items-center justify-center size-6 rounded-md transition-all duration-150 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-pointer",
-                                        allowed
-                                          ? "bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:scale-90"
-                                          : "border-2 border-border/80 bg-background hover:border-emerald-500 hover:bg-emerald-500/10 dark:hover:bg-emerald-950/20 active:scale-90",
-                                        (!canEdit || isSaving) && "cursor-not-allowed opacity-60"
-                                      )}
-                                      title={`${allowed ? "Click to Revoke" : "Click to Grant"} "${PERMISSION_LABELS[p] || p}" for ${ROLE_LABELS[r]}`}
-                                    >
-                                      {allowed ? (
-                                        <Check className="size-4 stroke-[3] text-white transition-transform group-hover:scale-110" />
-                                      ) : (
-                                        <span className="size-2 rounded-xs opacity-0 transition-opacity group-hover:opacity-40 group-hover:bg-emerald-600" />
-                                      )}
-                                    </button>
-                                  </div>
-                                </td>
-                              );
-                            })}
-
-                            {/* Custom Roles Checkboxes */}
-                            {customRoles.filter((cr) => selectedRoleForMatrix === "all" || selectedRoleForMatrix === cr.id).map((cr) => {
-                              const allowed = (customPermissionsMap[cr.id] || []).includes(p);
-                              const isHighlighted = selectedRoleForMatrix === cr.id;
-
-                              return (
-                                <td
-                                  key={cr.id}
-                                  className={cn(
-                                    "px-3 py-2 text-center align-middle bg-purple-500/5",
-                                    isHighlighted && "bg-purple-500/15"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      disabled={!canEdit || isSaving}
-                                      onClick={() => toggleCustomPermission(cr.id, p)}
-                                      className={cn(
-                                        "group relative inline-flex items-center justify-center size-6 rounded-md transition-all duration-150 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-pointer",
-                                        allowed
-                                          ? "bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:scale-90"
-                                          : "border-2 border-border/80 bg-background hover:border-emerald-500 hover:bg-emerald-500/10 dark:hover:bg-emerald-950/20 active:scale-90",
-                                        (!canEdit || isSaving) && "cursor-not-allowed opacity-60"
-                                      )}
-                                      title={`${allowed ? "Click to Revoke" : "Click to Grant"} "${PERMISSION_LABELS[p] || p}" for ${cr.name}`}
-                                    >
-                                      {allowed ? (
-                                        <Check className="size-4 stroke-[3] text-white transition-transform group-hover:scale-110" />
-                                      ) : (
-                                        <span className="size-2 rounded-xs opacity-0 transition-opacity group-hover:opacity-40 group-hover:bg-emerald-600" />
-                                      )}
-                                    </button>
-                                  </div>
-                                </td>
-                              );
-                            })}
+                                    <div className="flex items-center justify-center">
+                                      <button
+                                        type="button"
+                                        disabled={!canEdit || isSaving}
+                                        onClick={() =>
+                                          role.isCustom
+                                            ? toggleCustomPermission(role.id, p)
+                                            : togglePermission(role.rawRole!, p)
+                                        }
+                                        className={cn(
+                                          "group relative inline-flex items-center justify-center size-6 rounded-md transition-all duration-150 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-pointer",
+                                          allowed
+                                            ? "bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:scale-90"
+                                            : "border-2 border-border/80 bg-background hover:border-emerald-500 hover:bg-emerald-500/10 dark:hover:bg-emerald-950/20 active:scale-90",
+                                          (!canEdit || isSaving) && "cursor-not-allowed opacity-60"
+                                        )}
+                                        title={`${allowed ? "Click to Revoke" : "Click to Grant"} "${PERMISSION_LABELS[p] || p}" for ${role.name}`}
+                                      >
+                                        {allowed ? (
+                                          <Check className="size-4 stroke-[3] text-white transition-transform group-hover:scale-110" />
+                                        ) : (
+                                          <span className="size-2 rounded-xs opacity-0 transition-opacity group-hover:opacity-40 group-hover:bg-emerald-600" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  </td>
+                                );
+                              })}
                           </tr>
                         ))}
                       </tbody>
@@ -1188,14 +1210,14 @@ function Roles() {
       </Tabs>
 
       {/* ============================================================== */}
-      {/* DIALOG 1: CREATE CUSTOM ROLE                                   */}
+      {/* DIALOG 1: CREATE ROLE                                          */}
       {/* ============================================================== */}
       <Dialog open={isCreatingRole} onOpenChange={setIsCreatingRole}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="size-5 text-purple-500" />
-              Create Custom Role
+              <Plus className="size-5 text-primary" />
+              Create Role
             </DialogTitle>
             <DialogDescription>
               Define a new restaurant staff role. You can choose a starting template to copy default permissions.
@@ -1251,7 +1273,7 @@ function Roles() {
 
             <div className="space-y-1.5">
               <Label>Color Preset</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {ROLE_COLOR_PRESETS.map((preset) => (
                   <button
                     key={preset.id}
@@ -1264,8 +1286,8 @@ function Roles() {
                         : "border-border hover:bg-muted/50"
                     )}
                   >
-                    <span className={cn("size-3 rounded-full", preset.dot)} />
-                    <span>{preset.label}</span>
+                    <span className={cn("size-3 rounded-full shrink-0", preset.dot)} />
+                    <span className="truncate">{preset.label}</span>
                   </button>
                 ))}
               </div>
@@ -1275,7 +1297,7 @@ function Roles() {
               <Button type="button" variant="outline" onClick={() => setIsCreatingRole(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white">
+              <Button type="submit" className="gap-1.5">
                 <Plus className="size-4" /> Create role
               </Button>
             </DialogFooter>
@@ -1284,7 +1306,7 @@ function Roles() {
       </Dialog>
 
       {/* ============================================================== */}
-      {/* DIALOG 2: EDIT CUSTOM ROLE                                     */}
+      {/* DIALOG 2: EDIT ROLE                                            */}
       {/* ============================================================== */}
       <Dialog open={!!editingRole} onOpenChange={(open) => !open && setEditingRole(null)}>
         <DialogContent className="sm:max-w-md">
@@ -1294,7 +1316,7 @@ function Roles() {
               Edit Role: {editingRole?.name}
             </DialogTitle>
             <DialogDescription>
-              Update the name, description, and color for this custom role.
+              Update the name, description, and color for this role.
             </DialogDescription>
           </DialogHeader>
 
@@ -1323,7 +1345,7 @@ function Roles() {
 
             <div className="space-y-1.5">
               <Label>Color Preset</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {ROLE_COLOR_PRESETS.map((preset) => (
                   <button
                     key={preset.id}
@@ -1336,8 +1358,8 @@ function Roles() {
                         : "border-border hover:bg-muted/50"
                     )}
                   >
-                    <span className={cn("size-3 rounded-full", preset.dot)} />
-                    <span>{preset.label}</span>
+                    <span className={cn("size-3 rounded-full shrink-0", preset.dot)} />
+                    <span className="truncate">{preset.label}</span>
                   </button>
                 ))}
               </div>
