@@ -2,13 +2,13 @@ import { baseApi, run } from "@/app/base-api";
 import * as catalog from "@/services/catalog.service";
 import * as stock from "@/services/stock.service";
 import * as purchasing from "@/services/purchasing.service";
-import type { Category, Combo, GoodsReceipt, Ingredient, MenuItem, ModifierGroup, PurchaseOrder, RecipeLine, StockCount, Supplier, SupplierReturn } from "@/types/domain";
+import type { Category, Combo, GoodsReceipt, Ingredient, MenuItem, ModifierGroup, PurchaseOrder, RecipeLine, StockCount, StockTransfer, CreateStockTransferInput, Supplier, SupplierReturn } from "@/types/domain";
 
 type T<A> = { tenantId: string } & A;
 const MENU = ["Menu", "Dashboard"] as const;
 const STOCK = ["Inventory", "Dashboard"] as const;
 
-const api2 = baseApi.enhanceEndpoints({ addTagTypes: ["MenuItem", "Supplier", "PurchaseOrder", "Recipe", "StockCount", "Receipt", "SupplierReturn"] });
+const api2 = baseApi.enhanceEndpoints({ addTagTypes: ["MenuItem", "Supplier", "PurchaseOrder", "Recipe", "StockCount", "Receipt", "SupplierReturn", "StockTransfer"] });
 
 export const backofficeApi = api2.injectEndpoints({
   endpoints: (b) => ({
@@ -175,6 +175,29 @@ export const backofficeApi = api2.injectEndpoints({
       queryFn: ({ tenantId, ...i }) => run(() => purchasing.createSupplierReturn(tenantId, i)),
       invalidatesTags: ["SupplierReturn", ...STOCK],
     }),
+
+    // ---- Stock Transfers ----
+    stockTransfers: b.query<StockTransfer[], T<{ branchId?: string | undefined; status?: string | undefined }>>({
+      queryFn: ({ tenantId, branchId, status }) =>
+        run(() => stock.listStockTransfers(tenantId, { branchId, status })),
+      providesTags: ["StockTransfer"],
+    }),
+    stockTransfer: b.query<StockTransfer, T<{ id: string }>>({
+      queryFn: ({ tenantId, id }) => run(() => stock.getStockTransfer(tenantId, id)),
+      providesTags: (_r, _e, a) => [{ type: "StockTransfer" as const, id: a.id }],
+    }),
+    createStockTransfer: b.mutation<StockTransfer, T<CreateStockTransferInput>>({
+      queryFn: ({ tenantId, ...input }) => run(() => stock.createStockTransfer(tenantId, input)),
+      invalidatesTags: ["StockTransfer", ...STOCK],
+    }),
+    receiveStockTransfer: b.mutation<StockTransfer, T<{ id: string; notes?: string | undefined }>>({
+      queryFn: ({ tenantId, id, notes }) => run(() => stock.receiveStockTransfer(tenantId, id, notes)),
+      invalidatesTags: ["StockTransfer", ...STOCK],
+    }),
+    cancelStockTransfer: b.mutation<StockTransfer, T<{ id: string }>>({
+      queryFn: ({ tenantId, id }) => run(() => stock.cancelStockTransfer(tenantId, id)),
+      invalidatesTags: ["StockTransfer", ...STOCK],
+    }),
   }),
 });
 
@@ -216,4 +239,9 @@ export const {
   useSupplierReturnsQuery,
   useSupplierReturnQuery,
   useCreateSupplierReturnMutation,
+  useStockTransfersQuery,
+  useStockTransferQuery,
+  useCreateStockTransferMutation,
+  useReceiveStockTransferMutation,
+  useCancelStockTransferMutation,
 } = backofficeApi;

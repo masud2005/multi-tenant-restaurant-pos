@@ -66,6 +66,7 @@ const PROMOS: Record<string, [string, string, "percent" | "amount", number, numb
     ["Holiday Special Feast", "HOLIDAY15", "percent", 15, 500],
     ["Winter Warmup Festival", "WINTER20", "percent", 20, 800],
     ["Puja Dhamaka Mega Offer", "PUJA100", "amount", 100, 700],
+    ["Lunch Special Discount", "LUNCH10", "percent", 10, 600],
   ],
   t_harbor: [["Happy hour", "HAPPY15", "percent", 15, 20]],
   t_lumen: [["Morning combo", "MORNING1", "amount", 1, 5]],

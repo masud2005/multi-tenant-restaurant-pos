@@ -13,7 +13,7 @@ import { cartActions, cartLineSelectors } from "@/features/pos/cart.slice";
 import { ItemConfigDialog } from "@/features/pos/item-config-dialog";
 import { ORDER_TYPE_LABELS } from "@/features/orders/order-labels";
 import { computeTotals, lineTotal } from "@/lib/pricing";
-import { uid } from "@/mocks/db";
+const uid = (p = "line") => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

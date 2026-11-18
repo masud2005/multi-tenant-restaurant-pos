@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { backendFetch } from "@/services/api-client";
-import { ApiError } from "@/mocks/db";
+import { backendFetch, ApiError } from "@/services/api-client";
 
 export function PasswordChangeCard() {
   const { user, role } = useTenant();

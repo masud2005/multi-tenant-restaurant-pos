@@ -4,10 +4,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { cn, uid } from "@/lib/utils";
 import { useMoney } from "@/features/tenant/use-money";
 import type { MenuItem, ModifierGroup, OrderLine, SelectedModifier } from "@/types/domain";
-import { uid } from "@/mocks/db";
 
 interface Props {
   item: MenuItem | null;

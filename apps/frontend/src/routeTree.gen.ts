@@ -49,6 +49,7 @@ import { Route as AppTenantSlugFinanceExpensesRouteImport } from './routes/app.$
 import { Route as AppTenantSlugInventoryIndexRouteImport } from './routes/app.$tenantSlug.inventory.index'
 import { Route as AppTenantSlugInventoryStockCountsRouteImport } from './routes/app.$tenantSlug.inventory.stock-counts'
 import { Route as AppTenantSlugInventoryStockMovementsRouteImport } from './routes/app.$tenantSlug.inventory.stock-movements'
+import { Route as AppTenantSlugInventoryTransfersRouteImport } from './routes/app.$tenantSlug.inventory.transfers'
 import { Route as AppTenantSlugMenuIndexRouteImport } from './routes/app.$tenantSlug.menu.index'
 import { Route as AppTenantSlugMenuCategoriesRouteImport } from './routes/app.$tenantSlug.menu.categories'
 import { Route as AppTenantSlugMenuCombosRouteImport } from './routes/app.$tenantSlug.menu.combos'
@@ -268,6 +269,12 @@ const AppTenantSlugInventoryStockMovementsRoute =
     path: '/stock-movements',
     getParentRoute: () => AppTenantSlugInventoryRoute,
   } as any)
+const AppTenantSlugInventoryTransfersRoute =
+  AppTenantSlugInventoryTransfersRouteImport.update({
+    id: '/transfers',
+    path: '/transfers',
+    getParentRoute: () => AppTenantSlugInventoryRoute,
+  } as any)
 const AppTenantSlugMenuIndexRoute = AppTenantSlugMenuIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -364,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/app/$tenantSlug/finance/expenses': typeof AppTenantSlugFinanceExpensesRoute
   '/app/$tenantSlug/inventory/stock-counts': typeof AppTenantSlugInventoryStockCountsRoute
   '/app/$tenantSlug/inventory/stock-movements': typeof AppTenantSlugInventoryStockMovementsRoute
+  '/app/$tenantSlug/inventory/transfers': typeof AppTenantSlugInventoryTransfersRoute
   '/app/$tenantSlug/menu/categories': typeof AppTenantSlugMenuCategoriesRoute
   '/app/$tenantSlug/menu/combos': typeof AppTenantSlugMenuCombosRoute
   '/app/$tenantSlug/menu/modifiers': typeof AppTenantSlugMenuModifiersRoute
@@ -411,6 +419,7 @@ export interface FileRoutesByTo {
   '/app/$tenantSlug/finance/expenses': typeof AppTenantSlugFinanceExpensesRoute
   '/app/$tenantSlug/inventory/stock-counts': typeof AppTenantSlugInventoryStockCountsRoute
   '/app/$tenantSlug/inventory/stock-movements': typeof AppTenantSlugInventoryStockMovementsRoute
+  '/app/$tenantSlug/inventory/transfers': typeof AppTenantSlugInventoryTransfersRoute
   '/app/$tenantSlug/menu/categories': typeof AppTenantSlugMenuCategoriesRoute
   '/app/$tenantSlug/menu/combos': typeof AppTenantSlugMenuCombosRoute
   '/app/$tenantSlug/menu/modifiers': typeof AppTenantSlugMenuModifiersRoute
@@ -464,6 +473,7 @@ export interface FileRoutesById {
   '/app/$tenantSlug/finance/expenses': typeof AppTenantSlugFinanceExpensesRoute
   '/app/$tenantSlug/inventory/stock-counts': typeof AppTenantSlugInventoryStockCountsRoute
   '/app/$tenantSlug/inventory/stock-movements': typeof AppTenantSlugInventoryStockMovementsRoute
+  '/app/$tenantSlug/inventory/transfers': typeof AppTenantSlugInventoryTransfersRoute
   '/app/$tenantSlug/menu/categories': typeof AppTenantSlugMenuCategoriesRoute
   '/app/$tenantSlug/menu/combos': typeof AppTenantSlugMenuCombosRoute
   '/app/$tenantSlug/menu/modifiers': typeof AppTenantSlugMenuModifiersRoute
@@ -518,6 +528,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/finance/expenses'
     | '/app/$tenantSlug/inventory/stock-counts'
     | '/app/$tenantSlug/inventory/stock-movements'
+    | '/app/$tenantSlug/inventory/transfers'
     | '/app/$tenantSlug/menu/categories'
     | '/app/$tenantSlug/menu/combos'
     | '/app/$tenantSlug/menu/modifiers'
@@ -565,6 +576,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/finance/expenses'
     | '/app/$tenantSlug/inventory/stock-counts'
     | '/app/$tenantSlug/inventory/stock-movements'
+    | '/app/$tenantSlug/inventory/transfers'
     | '/app/$tenantSlug/menu/categories'
     | '/app/$tenantSlug/menu/combos'
     | '/app/$tenantSlug/menu/modifiers'
@@ -617,6 +629,7 @@ export interface FileRouteTypes {
     | '/app/$tenantSlug/finance/expenses'
     | '/app/$tenantSlug/inventory/stock-counts'
     | '/app/$tenantSlug/inventory/stock-movements'
+    | '/app/$tenantSlug/inventory/transfers'
     | '/app/$tenantSlug/menu/categories'
     | '/app/$tenantSlug/menu/combos'
     | '/app/$tenantSlug/menu/modifiers'
@@ -928,6 +941,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTenantSlugInventoryStockMovementsRouteImport
       parentRoute: typeof AppTenantSlugInventoryRoute
     }
+    '/app/$tenantSlug/inventory/transfers': {
+      id: '/app/$tenantSlug/inventory/transfers'
+      path: '/transfers'
+      fullPath: '/app/$tenantSlug/inventory/transfers'
+      preLoaderRoute: typeof AppTenantSlugInventoryTransfersRouteImport
+      parentRoute: typeof AppTenantSlugInventoryRoute
+    }
     '/app/$tenantSlug/menu/': {
       id: '/app/$tenantSlug/menu/'
       path: '/'
@@ -1029,6 +1049,7 @@ const AppTenantSlugFinanceRouteWithChildren =
 interface AppTenantSlugInventoryRouteChildren {
   AppTenantSlugInventoryStockCountsRoute: typeof AppTenantSlugInventoryStockCountsRoute
   AppTenantSlugInventoryStockMovementsRoute: typeof AppTenantSlugInventoryStockMovementsRoute
+  AppTenantSlugInventoryTransfersRoute: typeof AppTenantSlugInventoryTransfersRoute
   AppTenantSlugInventoryIndexRoute: typeof AppTenantSlugInventoryIndexRoute
 }
 
@@ -1038,6 +1059,7 @@ const AppTenantSlugInventoryRouteChildren: AppTenantSlugInventoryRouteChildren =
       AppTenantSlugInventoryStockCountsRoute,
     AppTenantSlugInventoryStockMovementsRoute:
       AppTenantSlugInventoryStockMovementsRoute,
+    AppTenantSlugInventoryTransfersRoute: AppTenantSlugInventoryTransfersRoute,
     AppTenantSlugInventoryIndexRoute: AppTenantSlugInventoryIndexRoute,
   }
 

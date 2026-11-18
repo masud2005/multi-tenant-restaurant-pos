@@ -93,11 +93,11 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
       <div className="max-w-2xl text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-destructive font-mono bg-destructive/10 p-2 rounded">
-          {error?.message || String(error)}
+          {(error as any)?.message || String(error)}
         </p>
-        {error?.stack && (
+        {(error as any)?.stack && (
           <pre className="mt-2 text-xs text-left bg-muted p-2 rounded overflow-auto max-h-60 text-muted-foreground whitespace-pre-wrap">
-            {error.stack}
+            {(error as any).stack}
           </pre>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">

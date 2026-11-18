@@ -19,6 +19,7 @@ function InventoryLayout() {
           { to: "/app/$tenantSlug/inventory", label: "Stock levels" },
           { to: "/app/$tenantSlug/inventory/stock-movements", label: "Movements" },
           { to: "/app/$tenantSlug/inventory/stock-counts", label: "Stock counts" },
+          { to: "/app/$tenantSlug/inventory/transfers", label: "Transfers" },
         ]}
       />
       <Outlet />

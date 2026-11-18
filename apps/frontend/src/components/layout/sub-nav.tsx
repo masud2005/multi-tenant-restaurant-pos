@@ -11,6 +11,7 @@ export type SubNavTo =
   | "/app/$tenantSlug/inventory"
   | "/app/$tenantSlug/inventory/stock-movements"
   | "/app/$tenantSlug/inventory/stock-counts"
+  | "/app/$tenantSlug/inventory/transfers"
   | "/app/$tenantSlug/finance"
   | "/app/$tenantSlug/finance/cash"
   | "/app/$tenantSlug/finance/expenses"

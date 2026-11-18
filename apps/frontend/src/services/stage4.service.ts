@@ -69,7 +69,7 @@ export async function getSalesReport(tenantId: string, branchId?: string, range 
         (m) =>
           (lineItemId && m.id === lineItemId) ||
           m.name.toLowerCase() === lineName.toLowerCase() ||
-          m.name.split("(")[0].trim().toLowerCase() === lineName.split("(")[0].trim().toLowerCase()
+          (m.name.split("(")[0]?.trim().toLowerCase() ?? "") === (lineName.split("(")[0]?.trim().toLowerCase() ?? "")
       );
       const canonicalId = matchedItem?.id || lineItemId || lineName || "item";
       const canonicalName = matchedItem?.name || lineName || "Item";
@@ -793,16 +793,16 @@ export async function listAuditLogs(
 export async function recordAuditLog(
   tenantId: string,
   input: {
-    actorId?: string;
+    actorId?: string | undefined;
     actorName: string;
-    actorRole?: string;
+    actorRole?: string | undefined;
     action: any;
     entity: AuditEntity | string;
-    entityId?: string;
+    entityId?: string | undefined;
     summary: string;
-    details?: string;
-    branchId?: string;
-    metadata?: Record<string, unknown>;
+    details?: string | undefined;
+    branchId?: string | undefined;
+    metadata?: Record<string, unknown> | undefined;
   },
 ): Promise<AuditLog> {
   try {
@@ -954,6 +954,39 @@ export async function toggleIntegration(
 // ---------- Tenant Settings & Branding ----------
 
 export async function updateTenantSettings(tenantId: string, input: TenantSettingsInput): Promise<Tenant> {
+  try {
+    const updated = await backendFetch<any>(`/tenants/${tenantId}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: input.name?.trim(),
+        tagline: input.tagline?.trim(),
+        initials: input.initials?.trim().toUpperCase(),
+        accent: input.accent?.trim(),
+        currency: input.currency?.trim(),
+        locale: input.locale?.trim(),
+        taxRate: input.taxRate,
+        serviceChargeRate: input.serviceChargeRate,
+        receiptFooter: input.receiptFooter?.trim(),
+      }),
+    });
+
+    if (updated && updated.id) {
+      const tenant = TENANTS.find((currentTenant) => currentTenant.id === tenantId || currentTenant.slug === tenantId);
+      if (tenant) {
+        Object.assign(tenant, updated);
+      }
+      const db = tenantDb(tenantId);
+      db.tenantSettings = { ...(tenant || updated) };
+      commit(tenantId);
+      return (tenant || updated) as Tenant;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
+
   await latency(100, 250);
   const db = tenantDb(tenantId);
   const tenant = TENANTS.find((currentTenant) => currentTenant.id === tenantId);

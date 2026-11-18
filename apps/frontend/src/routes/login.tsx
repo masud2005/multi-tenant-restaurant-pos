@@ -9,13 +9,10 @@ import { AuthLayout } from "@/components/layout/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MockNotice } from "@/components/common/states";
 import { useLoginMutation } from "@/app/api";
 import { errorMessage } from "@/app/base-api";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { signedIn } from "@/features/auth/session.slice";
-import { USERS, DEMO_PASSWORD } from "@/mocks/platform";
-import { ROLE_LABELS } from "@/config/permissions.config";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -57,12 +54,6 @@ function LoginPage() {
     }
   };
 
-  const fill = (email: string) => {
-    form.setValue("email", email);
-    form.setValue("password", DEMO_PASSWORD);
-    form.clearErrors();
-  };
-
   return (
     <AuthLayout title="Sign in" subtitle="Use your work email to access your restaurants.">
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -85,29 +76,6 @@ function LoginPage() {
           {isLoading && <Loader2 className="size-4 animate-spin" />} Sign in
         </Button>
       </form>
-
-      <div className="mt-8 space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Demo accounts</p>
-        <div className="grid gap-2">
-          {USERS.map((u) => (
-            <button
-              key={u.id}
-              type="button"
-              onClick={() => fill(u.email)}
-              className="flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-            >
-              <span>
-                <span className="font-medium">{u.name}</span>
-                <span className="block text-xs text-muted-foreground">{u.email}</span>
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {[...new Set(u.memberships.map((m) => ROLE_LABELS[m.role]))].join(", ")}
-              </span>
-            </button>
-          ))}
-        </div>
-        <MockNotice>All demo accounts use the password “{DEMO_PASSWORD}”. Sign-in is simulated in the browser.</MockNotice>
-      </div>
     </AuthLayout>
   );
 }

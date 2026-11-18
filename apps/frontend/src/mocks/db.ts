@@ -82,11 +82,4 @@ export const uid = (prefix: string) => `${prefix}_${Math.random().toString(36).s
 export const latency = (min = 120, max = 380) =>
   new Promise<void>((r) => setTimeout(r, min + Math.random() * (max - min)));
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiError } from "@/services/api-client";

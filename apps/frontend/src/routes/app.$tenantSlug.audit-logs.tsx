@@ -307,7 +307,7 @@ function AuditLogsPage() {
         tenantId: tenant.id,
         actorId: user.id,
         actorName: user.name || "Administrator",
-        actorRole: user.role || role || "OWNER",
+        actorRole: (user as any).role || role || "OWNER",
         action: newLog.action,
         entity: newLog.entity,
         entityId: newLog.entityId.trim() || undefined,

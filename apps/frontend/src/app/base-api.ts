@@ -1,5 +1,5 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
-import { ApiError } from "@/mocks/db";
+import { ApiError } from "@/services/api-client";
 
 export interface ApiErrorShape {
   status: number;

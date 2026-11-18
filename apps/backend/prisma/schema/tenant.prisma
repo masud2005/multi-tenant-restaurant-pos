@@ -41,6 +41,8 @@ model Tenant {
   notifications       Notification[]
   auditLogs           AuditLog[]
   customRoles         CustomRole[]
+  cashSessions        CashSession[]
+  expenses            Expense[]
 
   @@map("tenants")
 }
@@ -141,6 +143,8 @@ model Branch {
   riders            Rider[]
   notifications     Notification[]
   auditLogs         AuditLog[]
+  cashSessions      CashSession[]
+  expenses          Expense[]
 
   @@unique([tenantId, name])
   @@map("branches")

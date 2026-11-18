@@ -1,0 +1,63 @@
+model CashSession {
+  id           String      @id @default(uuid())
+  tenantId     String
+  branchId     String
+  number       String
+  openedBy     String
+  openedAt     DateTime    @default(now())
+  openingFloat Float       @default(0)
+  closedBy     String?
+  closedAt     DateTime?
+  expectedCash Float?
+  countedCash  Float?
+  variance     Float?
+  notes        String      @default("")
+
+  entries      CashEntry[]
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([tenantId, branchId])
+  @@index([branchId, closedAt])
+  @@map("cash_sessions")
+}
+
+model CashEntry {
+  id            String      @id @default(uuid())
+  cashSessionId String
+  kind          String      // "in" | "out"
+  amount        Float
+  reason        String
+  by            String
+  createdAt     DateTime    @default(now())
+
+  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
+
+  @@index([cashSessionId])
+  @@map("cash_entries")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String
+  category    String   // supplies, utilities, rent, maintenance, marketing, wages, other
+  description String
+  amount      Float
+  paidFrom    String   // cash_drawer, bank
+  date        String   // YYYY-MM-DD
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, branchId])
+  @@index([branchId, date])
+  @@map("expenses")
+}

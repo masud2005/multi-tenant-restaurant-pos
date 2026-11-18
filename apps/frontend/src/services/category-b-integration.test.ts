@@ -43,8 +43,8 @@ describe("Category B Backend Integrations", () => {
 
       const res = await stockService.listStockCounts(tenantId, branchId);
       expect(res).toHaveLength(1);
-      expect(res[0].number).toBe("SC-101");
-      expect(res[0].lines[0].variance).toBe(2);
+      expect(res[0]!.number).toBe("SC-101");
+      expect(res[0]!.lines[0]!.variance).toBe(2);
       expect(apiClient.backendFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/tenants/${tenantId}/inventory/stock-counts?branchId=${branchId}`)
       );
@@ -81,7 +81,7 @@ describe("Category B Backend Integrations", () => {
       });
 
       expect(res.id).toBe("sc_2");
-      expect(res.lines[0].variance).toBe(-5);
+      expect(res.lines[0]!.variance).toBe(-5);
       expect(apiClient.backendFetch).toHaveBeenCalledWith(
         `/tenants/${tenantId}/inventory/stock-counts`,
         expect.objectContaining({ method: "POST" })
@@ -110,8 +110,8 @@ describe("Category B Backend Integrations", () => {
 
       const res = await opsService.listMovements(tenantId, branchId);
       expect(res).toHaveLength(1);
-      expect(res[0].ingredientName).toBe("Rice");
-      expect(res[0].qty).toBe(5);
+      expect(res[0]!.ingredientName).toBe("Rice");
+      expect(res[0]!.qty).toBe(5);
       expect(apiClient.backendFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/tenants/${tenantId}/stock-movements?branchId=${branchId}&limit=100`)
       );
@@ -161,8 +161,8 @@ describe("Category B Backend Integrations", () => {
 
       const res = await platformService.listBranches(tenantId, "u_demo");
       expect(res).toHaveLength(2);
-      expect(res[0].name).toBe("Gulshan Branch");
-      expect(res[1].name).toBe("Dhanmondi Branch");
+      expect(res[0]!.name).toBe("Gulshan Branch");
+      expect(res[1]!.name).toBe("Dhanmondi Branch");
       expect(apiClient.backendFetch).toHaveBeenCalledWith(`/tenants/${tenantId}/branches`);
     });
   });
@@ -263,7 +263,7 @@ describe("Category B Backend Integrations", () => {
 
       expect(res.refunded).toBe(500);
       expect(res.refunds).toHaveLength(1);
-      expect(res.refunds[0].amount).toBe(500);
+      expect(res.refunds![0]!.amount).toBe(500);
       expect(apiClient.backendFetch).toHaveBeenCalledWith(
         `/tenants/${tenantId}/orders/ord_1001/refunds`,
         expect.objectContaining({
@@ -324,8 +324,8 @@ describe("Category B Backend Integrations", () => {
       const res = await catalogService.moveCategory(tenantId, "cat_1", 1);
 
       expect(res).toHaveLength(2);
-      expect(res[0].id).toBe("cat_2");
-      expect(res[1].id).toBe("cat_1");
+      expect(res[0]!.id).toBe("cat_2");
+      expect(res[1]!.id).toBe("cat_1");
       expect(apiClient.backendFetch).toHaveBeenCalledWith(
         `/tenants/${tenantId}/categories/cat_1/move`,
         expect.objectContaining({
@@ -411,8 +411,8 @@ describe("Category B Backend Integrations", () => {
       const res = await platformService.listTenantsForUser("usr_1");
 
       expect(res).toHaveLength(1);
-      expect(res[0].id).toBe("t_saffron");
-      expect(res[0].name).toBe("Saffron & Ember");
+      expect(res[0]!.id).toBe("t_saffron");
+      expect(res[0]!.name).toBe("Saffron & Ember");
       expect(apiClient.backendFetch).toHaveBeenCalledWith("/auth/me/tenants");
     });
   });

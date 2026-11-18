@@ -173,8 +173,8 @@ interface EditableRole {
   color: string;
   isSystem: boolean;
   isOwner: boolean;
-  rawRole?: RoleId;
-  rawCustom?: CustomRole;
+  rawRole?: RoleId | undefined;
+  rawCustom?: CustomRole | undefined;
 }
 
 interface RoleItem {
@@ -184,12 +184,12 @@ interface RoleItem {
   description: string;
   permsCount: number;
   staffCount: number;
-  badgeColor?: string;
-  dot?: string;
-  color?: string;
+  badgeColor?: string | undefined;
+  dot?: string | undefined;
+  color?: string | undefined;
   isOwner: boolean;
-  rawRole?: RoleId;
-  rawCustom?: CustomRole;
+  rawRole?: RoleId | undefined;
+  rawCustom?: CustomRole | undefined;
 }
 
 function Roles() {
@@ -294,7 +294,7 @@ function Roles() {
       setCustomRoles(localCustom);
       const permMap: Record<string, Permission[]> = {};
       for (const cr of localCustom) {
-        permMap[cr.id] = cr.permissions;
+        permMap[cr.id] = cr.permissions as Permission[];
       }
       setCustomPermissionsMap(permMap);
       setInitialCustomMap(permMap);
@@ -328,7 +328,7 @@ function Roles() {
           setCustomRoles(backendCustom);
           const cMap: Record<string, Permission[]> = {};
           for (const cr of backendCustom) {
-            cMap[cr.id] = cr.permissions;
+            cMap[cr.id] = cr.permissions as Permission[];
           }
           setCustomPermissionsMap(cMap);
           setInitialCustomMap(cMap);
@@ -991,7 +991,6 @@ function Roles() {
                                         : `Are you sure you want to delete the "${item.name}" role?`
                                     }
                                     confirmLabel="Delete role"
-                                    variant="destructive"
                                     onConfirm={() => handleDeleteRole(item)}
                                   >
                                     <Button

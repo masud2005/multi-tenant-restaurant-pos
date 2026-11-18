@@ -53,16 +53,16 @@ export const stage4Api = apiWithTags.injectEndpoints({
     recordAuditLog: b.mutation<
       AuditLog,
       T<{
-        actorId?: string;
+        actorId?: string | undefined;
         actorName: string;
-        actorRole?: string;
+        actorRole?: string | undefined;
         action: string;
         entity: AuditEntity | string;
-        entityId?: string;
+        entityId?: string | undefined;
         summary: string;
-        details?: string;
-        branchId?: string;
-        metadata?: Record<string, unknown>;
+        details?: string | undefined;
+        branchId?: string | undefined;
+        metadata?: Record<string, unknown> | undefined;
       }>
     >({
       queryFn: ({ tenantId, ...input }) => run(() => stage4.recordAuditLog(tenantId, input)),
@@ -74,7 +74,7 @@ export const stage4Api = apiWithTags.injectEndpoints({
       queryFn: (tenantId) => run(() => stage4.listIntegrations(tenantId)),
       providesTags: ["Integrations"],
     }),
-    toggleIntegration: b.mutation<Integration, T<{ integrationId: string; enabled: boolean; config?: Record<string, string> }>>({
+    toggleIntegration: b.mutation<Integration, T<{ integrationId: string; enabled: boolean; config?: Record<string, string> | undefined }>>({
       queryFn: ({ tenantId, integrationId, enabled, config }) =>
         run(() => stage4.toggleIntegration(tenantId, integrationId, enabled, config)),
       invalidatesTags: ["Integrations", "Audit"],

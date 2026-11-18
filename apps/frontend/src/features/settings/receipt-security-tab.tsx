@@ -159,7 +159,7 @@ export function ReceiptSecurityTab() {
                 name={tenant.name}
                 tagline={tenant.tagline}
                 initials={tenant.initials}
-                logoUrl={logoUrl}
+                logoUrl={logoUrl ?? undefined}
                 address={branch?.address ?? ""}
                 cashierName={user.name.split(" ")[0] ?? user.name}
                 receiptFooter={receiptFooter}

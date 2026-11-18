@@ -229,4 +229,58 @@ export class AuthService {
 
         return Array.from(tenantMap.values());
     }
+
+    async getMe(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                staffMembers: {
+                    where: { isDeleted: false, active: true },
+                    include: { tenant: true },
+                },
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User');
+        }
+
+        const primaryStaff = user.staffMembers[0];
+        const displayName = primaryStaff?.name || user.email?.split('@')[0] || 'User';
+        const initials = primaryStaff?.name
+            ? primaryStaff.name
+                .split(' ')
+                .map((w) => w[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase()
+            : user.email?.slice(0, 2).toUpperCase() || 'US';
+
+        const memberships = user.staffMembers.map((s) => ({
+            tenantId: s.tenantId,
+            role: s.role.toLowerCase(),
+            branchIds: s.branchIds.length > 0 ? s.branchIds : ('all' as const),
+        }));
+
+        if (user.role === UserRole.OWNER && memberships.length === 0) {
+            const allTenants = await this.prisma.tenant.findMany({ select: { id: true } });
+            for (const t of allTenants) {
+                memberships.push({
+                    tenantId: t.id,
+                    role: 'owner',
+                    branchIds: 'all',
+                });
+            }
+        }
+
+        return {
+            id: user.id,
+            name: displayName,
+            email: user.email || '',
+            role: user.role.toLowerCase(),
+            status: user.status,
+            initials,
+            memberships,
+        };
+    }
 }

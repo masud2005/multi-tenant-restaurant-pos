@@ -1,4 +1,9 @@
-import { ApiError } from "@/mocks/db";
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 const BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.["VITE_BACKEND_URL"]) ||

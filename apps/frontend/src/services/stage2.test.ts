@@ -36,21 +36,22 @@ describe("stage 2 stock rules", () => {
   });
 
   it("waste can't push stock below zero", async () => {
-    const m = ing("mango");
+    const m = ing("mutton");
     await expect(adjustStock(T, { branchId: B, ingredientId: m.id, direction: "remove", reason: "waste", qty: m.stock + 1, note: "" })).rejects.toThrow(/on hand/);
   });
 
   it("stock count posts the variance and sets stock to the counted value", async () => {
     const r = ing("rice");
+    const stockBefore = r.stock;
     const count = await submitStockCount(T, { branchId: B, notes: "", createdBy: "t", counts: [{ ingredientId: r.id, counted: 35 }] });
-    expect(count.lines[0]!.variance).toBe(35 - 40);
+    expect(count.lines[0]!.variance).toBe(35 - stockBefore);
     expect(ing("rice").stock).toBe(35);
   });
 
   it("paying a combo deducts every component's recipe", async () => {
-    const combo = tenantDb(T).combos[0]!; // Tikka Thali: tikka, naan, rice, lassi
-    const flourBefore = ing("flour").stock;
-    const chickenBefore = ing("chicken").stock;
+    const combo = tenantDb(T).combos[0]!; // শাহী কাচ্চি ও বোরহানি কম্বো: uses rice, mutton, ghee
+    const riceBefore = ing("rice").stock;
+    const muttonBefore = ing("mutton").stock;
     const o = await createOrder(T, {
       branchId: B, type: "takeaway", tableId: null, customerName: "", customerPhone: "", discount: null, notes: "", createdBy: "t",
       lines: [{ id: "l1", itemId: combo.id, name: combo.name, variantId: null, variantName: null, modifiers: [], qty: 1, unitPrice: combo.price, notes: "" }],
@@ -59,12 +60,12 @@ describe("stage 2 stock rules", () => {
     await advanceKitchen(T, o.id);
     await markServed(T, o.id);
     await addPayment(T, o.id, { method: "card", amount: o.totals.total, tendered: o.totals.total, reference: "" });
-    expect(ing("flour").stock).toBeCloseTo(flourBefore - 0.12, 3);
-    expect(ing("chicken").stock).toBeCloseTo(chickenBefore - 0.25, 3);
+    expect(ing("rice").stock).toBeCloseTo(riceBefore - 0.25, 2);
+    expect(ing("mutton").stock).toBeCloseTo(muttonBefore - 0.3, 2);
   });
 
   it("recipe cost is the sum of qty × unit cost", () => {
-    const { cost } = costRecipe([{ ingredientKey: "chicken", qty: 0.25 }, { ingredientKey: "yogurt", qty: 0.05 }], tenantDb(T).ingredients.filter((i) => i.branchId === B));
-    expect(cost).toBe(0.25 * 420 + 0.05 * 180);
+    const { cost } = costRecipe([{ ingredientKey: "rice", qty: 0.25 }, { ingredientKey: "ghee", qty: 0.05 }], tenantDb(T).ingredients.filter((i) => i.branchId === B));
+    expect(cost).toBe(0.25 * 130 + 0.05 * 1200);
   });
 });

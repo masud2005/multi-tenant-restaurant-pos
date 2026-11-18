@@ -388,7 +388,7 @@ function ReportsPage() {
                           />
                           <Tooltip
                             content={({ active, payload, label }) => {
-                              if (!active || !payload || !payload.length) return null;
+                              if (!active || !payload || !payload.length || !payload[0]) return null;
                               const data = payload[0].payload;
                               const revenue = Number(data.sales || 0);
                               const ordersCount = Number(data.orders || 0);
@@ -523,7 +523,7 @@ function ReportsPage() {
                           <Tooltip
                             cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
                             content={({ active, payload }) => {
-                              if (!active || !payload || !payload.length) return null;
+                              if (!active || !payload || !payload.length || !payload[0]) return null;
                               const d = payload[0].payload;
                               const ordersCount = Number(d.orders || 0);
                               const salesVal = Number(d.sales || 0);
@@ -747,7 +747,7 @@ function ReportsPage() {
                               </Pie>
                               <Tooltip
                                 content={({ active, payload }) => {
-                                  if (!active || !payload || !payload.length) return null;
+                                  if (!active || !payload || !payload.length || !payload[0]) return null;
                                   const d = payload[0].payload;
                                   return (
                                     <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-md text-xs space-y-1.5 min-w-[170px]">

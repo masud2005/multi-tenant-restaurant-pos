@@ -17,8 +17,8 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
     console.log('Seeding database...');
 
-    await seedAdmin(prisma);
     await seedTenants(prisma);
+    await seedAdmin(prisma);
     await seedBangladeshiPOS(prisma);
 
     console.log('Database seeding completed!');

@@ -3,7 +3,7 @@ import type { TenantDb } from "@/mocks/seed";
 import { round2 } from "@/lib/pricing";
 import type { CashSession, DeliveryStatus, Expense, Order, PaymentMethod, Rider } from "@/types/domain";
 import { backendFetch } from "./api-client";
-import { mapBackendOrderToDomain } from "./operations.service";
+import { listOrders, mapBackendOrderToDomain } from "./operations.service";
 
 // Payments ledger, refunds, cash drawer sessions, expenses and delivery dispatch.
 // Future REST: /tenants/:tenantId/payments, /orders/:id/refunds, /cash-sessions, /expenses, /deliveries
@@ -21,6 +21,25 @@ export interface LedgerRow {
 }
 
 export async function listLedger(tenantId: string, branchId: string): Promise<LedgerRow[]> {
+  try {
+    const orders = await listOrders(tenantId, { branchId });
+    if (Array.isArray(orders) && orders.length > 0) {
+      const rows: LedgerRow[] = [];
+      for (const o of orders) {
+        if (o.branchId !== branchId) continue;
+        for (const p of o.payments || []) {
+          rows.push({ id: p.id, kind: "payment", orderId: o.id, orderNumber: o.number, method: p.method, amount: p.amount, reference: p.reference, at: p.at });
+        }
+        for (const r of o.refunds || []) {
+          rows.push({ id: r.id, kind: "refund", orderId: o.id, orderNumber: o.number, method: r.method, amount: -r.amount, reference: r.reason, at: r.at });
+        }
+      }
+      return rows.sort((a, b) => b.at.localeCompare(a.at));
+    }
+  } catch {
+    // fallback
+  }
+
   await latency();
   const rows: LedgerRow[] = [];
   for (const o of tenantDb(tenantId).orders) {
@@ -132,6 +151,16 @@ export interface CashSessionView extends CashSession {
 }
 
 export async function listCashSessions(tenantId: string, branchId: string): Promise<CashSessionView[]> {
+  try {
+    const res = await backendFetch<any[]>(`/tenants/${tenantId}/cash-drawer/sessions?branchId=${branchId}`);
+    if (Array.isArray(res)) {
+      return res;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   return db.cashSessions
@@ -141,6 +170,19 @@ export async function listCashSessions(tenantId: string, branchId: string): Prom
 }
 
 export async function openCashSession(tenantId: string, input: { branchId: string; openingFloat: number; by: string }): Promise<CashSession> {
+  try {
+    const res = await backendFetch<CashSession>(`/tenants/${tenantId}/cash-drawer/sessions`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    if (res && res.id) {
+      return res;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   if (openSession(db, input.branchId)) throw new ApiError(409, "A cash drawer is already open for this branch.");
@@ -153,6 +195,27 @@ export async function openCashSession(tenantId: string, input: { branchId: strin
 }
 
 export async function addCashEntry(tenantId: string, input: { branchId: string; kind: "in" | "out"; amount: number; reason: string; by: string }): Promise<CashSession> {
+  try {
+    const current = await backendFetch<any>(`/tenants/${tenantId}/cash-drawer/current?branchId=${input.branchId}`);
+    if (current && current.id) {
+      const res = await backendFetch<CashSession>(`/tenants/${tenantId}/cash-drawer/sessions/${current.id}/entries`, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: input.kind,
+          amount: input.amount,
+          reason: input.reason,
+          by: input.by,
+        }),
+      });
+      if (res && res.id) return res;
+    } else {
+      throw new ApiError(409, "Open the cash drawer first.");
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   const s = openSession(db, input.branchId);
@@ -166,6 +229,26 @@ export async function addCashEntry(tenantId: string, input: { branchId: string; 
 }
 
 export async function closeCashSession(tenantId: string, input: { branchId: string; countedCash: number; notes: string; by: string }): Promise<CashSession> {
+  try {
+    const current = await backendFetch<any>(`/tenants/${tenantId}/cash-drawer/current?branchId=${input.branchId}`);
+    if (current && current.id) {
+      const res = await backendFetch<CashSession>(`/tenants/${tenantId}/cash-drawer/sessions/${current.id}/close`, {
+        method: "POST",
+        body: JSON.stringify({
+          countedCash: input.countedCash,
+          notes: input.notes,
+          by: input.by,
+        }),
+      });
+      if (res && res.id) return res;
+    } else {
+      throw new ApiError(409, "No open cash drawer for this branch.");
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   const s = openSession(db, input.branchId);
@@ -187,6 +270,16 @@ export async function closeCashSession(tenantId: string, input: { branchId: stri
 
 // ---------- Expenses ----------
 export async function listExpenses(tenantId: string, branchId: string): Promise<Expense[]> {
+  try {
+    const res = await backendFetch<Expense[]>(`/tenants/${tenantId}/expenses?branchId=${branchId}`);
+    if (Array.isArray(res)) {
+      return res;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   return tenantDb(tenantId).expenses.filter((e) => e.branchId === branchId).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 }
@@ -194,6 +287,19 @@ export async function listExpenses(tenantId: string, branchId: string): Promise<
 export type ExpenseInput = Pick<Expense, "branchId" | "category" | "description" | "amount" | "paidFrom" | "date" | "createdBy">;
 
 export async function createExpense(tenantId: string, input: ExpenseInput): Promise<Expense> {
+  try {
+    const res = await backendFetch<Expense>(`/tenants/${tenantId}/expenses`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    if (res && res.id) {
+      return res;
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   if (!input.description.trim()) throw new ApiError(422, "Description is required.");
@@ -210,6 +316,16 @@ export async function createExpense(tenantId: string, input: ExpenseInput): Prom
 }
 
 export async function deleteExpense(tenantId: string, id: string): Promise<{ ok: true }> {
+  try {
+    await backendFetch(`/tenants/${tenantId}/expenses/${id}`, {
+      method: "DELETE",
+    });
+    return { ok: true };
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
   await latency();
   const db = tenantDb(tenantId);
   const e = db.expenses.find((x) => x.id === id);
@@ -288,7 +404,7 @@ export async function listRiders(tenantId: string, branchId: string): Promise<Ri
 
 export async function saveRider(
   tenantId: string,
-  input: { id?: string; branchId: string; name: string; phone: string }
+  input: { id?: string | undefined; branchId: string; name: string; phone: string }
 ): Promise<Rider> {
   const trimmedName = input.name.trim();
   const trimmedPhone = input.phone.trim();

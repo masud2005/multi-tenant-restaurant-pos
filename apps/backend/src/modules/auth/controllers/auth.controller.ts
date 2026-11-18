@@ -54,6 +54,18 @@ export class AuthController {
         return this.authService.logout(user.id);
     }
 
+    @Get('me')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Get current logged in user profile' })
+    @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async getMe(@CurrentUser() user: any) {
+        const profile = await this.authService.getMe(user.id);
+        return ResponseHelper.success(profile, 'Profile retrieved successfully');
+    }
+
     @Get('me/tenants')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()

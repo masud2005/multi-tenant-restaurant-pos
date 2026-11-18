@@ -1,7 +1,7 @@
 import { ApiError, commit, latency, tenantDb, uid } from "@/mocks/db";
 import { round2 } from "@/lib/pricing";
 import { backendFetch } from "./api-client";
-import type { Ingredient, MovementReason, StockCount, StockMovement } from "@/types/domain";
+import type { Ingredient, MovementReason, StockCount, StockMovement, StockTransfer, CreateStockTransferInput } from "@/types/domain";
 import type { TenantDb } from "@/mocks/seed";
 
 // Stock operations. Future REST: /tenants/:tenantId/branches/:branchId/inventory/...
@@ -357,3 +357,49 @@ export async function submitStockCount(
   commit(tenantId);
   return count;
 }
+
+// ---- Inter-Branch Stock Transfers (Real Backend API) ----
+
+export async function listStockTransfers(
+  tenantSlug: string,
+  filters?: { branchId?: string | undefined; status?: string | undefined }
+): Promise<StockTransfer[]> {
+  const params = new URLSearchParams();
+  if (filters?.branchId && filters.branchId !== "all") params.append("branchId", filters.branchId);
+  if (filters?.status && filters.status !== "all") params.append("status", filters.status);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+
+  return backendFetch<StockTransfer[]>(`/tenants/${tenantSlug}/stock-transfers${qs}`);
+}
+
+export async function getStockTransfer(tenantSlug: string, id: string): Promise<StockTransfer> {
+  return backendFetch<StockTransfer>(`/tenants/${tenantSlug}/stock-transfers/${id}`);
+}
+
+export async function createStockTransfer(
+  tenantSlug: string,
+  input: CreateStockTransferInput
+): Promise<StockTransfer> {
+  return backendFetch<StockTransfer>(`/tenants/${tenantSlug}/stock-transfers`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function receiveStockTransfer(
+  tenantSlug: string,
+  id: string,
+  notes?: string | undefined
+): Promise<StockTransfer> {
+  return backendFetch<StockTransfer>(`/tenants/${tenantSlug}/stock-transfers/${id}/receive`, {
+    method: "POST",
+    body: JSON.stringify({ notes }),
+  });
+}
+
+export async function cancelStockTransfer(tenantSlug: string, id: string): Promise<StockTransfer> {
+  return backendFetch<StockTransfer>(`/tenants/${tenantSlug}/stock-transfers/${id}/cancel`, {
+    method: "POST",
+  });
+}
+

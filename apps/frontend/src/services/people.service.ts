@@ -11,6 +11,8 @@ import {
   updatePromotionApi,
   validatePromotionApi,
 } from "./promotion.service";
+import { getCustomersApi, createCustomerApi, updateCustomerApi } from "./customer.service";
+import { getLoyaltySettingsApi } from "./loyalty.service";
 import { type Permission, ROLE_PERMISSIONS } from "@/config/permissions.config";
 
 import type {
@@ -72,6 +74,32 @@ export function awardLoyalty(db: TenantDb, order: Order) {
 
 // ---------- Customers ----------
 export async function listCustomers(tenantId: string): Promise<Customer[]> {
+  try {
+    const res = await getCustomersApi(tenantId);
+    if (res && Array.isArray(res.items)) {
+      const db = tenantDb(tenantId);
+      const mapped: Customer[] = res.items.map((c) => ({
+        id: c.id,
+        tenantId: c.tenantId,
+        name: c.name,
+        phone: c.phone,
+        email: "",
+        notes: c.notes || "",
+        points: c.loyaltyPoints,
+        lifetimePoints: c.loyaltyPoints,
+        visits: c.orders?.length || 0,
+        totalSpent: c.totalSpent,
+        lastVisitAt: c.orders?.[0]?.createdAt || null,
+        ledger: [],
+        createdAt: c.createdAt,
+      }));
+      db.customers = mapped;
+      return mapped;
+    }
+  } catch {
+    // fallback
+  }
+
   await latency();
   return [...tenantDb(tenantId).customers].sort((a, b) => b.totalSpent - a.totalSpent);
 }
@@ -79,12 +107,65 @@ export async function listCustomers(tenantId: string): Promise<Customer[]> {
 export type CustomerInput = Pick<Customer, "name" | "phone" | "email" | "notes"> & { id?: string | undefined };
 
 export async function saveCustomer(tenantId: string, input: CustomerInput): Promise<Customer> {
-  await latency();
-  const db = tenantDb(tenantId);
   const name = input.name.trim();
   const phone = normalisePhone(input.phone);
   if (!name) throw new ApiError(422, "Name is required.");
   if (phone.length < 6) throw new ApiError(422, "Enter a valid phone number.");
+
+  try {
+    if (input.id) {
+      const updated = await updateCustomerApi(tenantId, input.id, {
+        name,
+        phone,
+        notes: input.notes?.trim() || undefined,
+      });
+      if (updated && updated.id) {
+        const db = tenantDb(tenantId);
+        const existing = db.customers.find((x) => x.id === updated.id);
+        if (existing) {
+          existing.name = updated.name;
+          existing.phone = updated.phone;
+          existing.notes = updated.notes || "";
+          commit(tenantId);
+          return existing;
+        }
+      }
+    } else {
+      const created = await createCustomerApi(tenantId, {
+        name,
+        phone,
+        notes: input.notes?.trim() || undefined,
+      });
+      if (created && created.id) {
+        const db = tenantDb(tenantId);
+        const mapped: Customer = {
+          id: created.id,
+          tenantId: created.tenantId,
+          name: created.name,
+          phone: created.phone,
+          email: input.email.trim(),
+          notes: created.notes || "",
+          points: created.loyaltyPoints,
+          lifetimePoints: created.loyaltyPoints,
+          visits: 0,
+          totalSpent: 0,
+          lastVisitAt: null,
+          ledger: [],
+          createdAt: created.createdAt,
+        };
+        db.customers.push(mapped);
+        commit(tenantId);
+        return mapped;
+      }
+    }
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 503)) {
+      throw err;
+    }
+  }
+
+  await latency();
+  const db = tenantDb(tenantId);
   if (db.customers.some((c) => normalisePhone(c.phone) === phone && c.id !== input.id)) throw new ApiError(409, "A customer with this phone already exists.");
   const data = { name, phone, email: input.email.trim(), notes: input.notes.trim() };
   if (input.id) {
@@ -117,6 +198,18 @@ export async function adjustPoints(tenantId: string, input: { customerId: string
 }
 
 export async function getLoyaltySettings(tenantId: string) {
+  try {
+    const res = await getLoyaltySettingsApi(tenantId);
+    if (res) {
+      return {
+        spendPerPoint: res.spendAmountPerPoint,
+        pointValue: res.pointValue,
+      };
+    }
+  } catch {
+    // fallback
+  }
+
   await latency(60, 120);
   return tenantDb(tenantId).loyalty;
 }

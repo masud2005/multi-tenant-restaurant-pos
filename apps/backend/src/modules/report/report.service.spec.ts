@@ -174,7 +174,7 @@ describe('ReportService', () => {
 
       expect(result.ordersByStatus.find((s) => s.status === 'served')?.count).toBe(1);
       expect(result.ordersByStatus.find((s) => s.status === 'in_kitchen')?.count).toBe(1);
-      expect(result.ordersByType.find((t) => t.type === 'dine_in')?.count).toBe(1);
+      expect(result.ordersByType.find((t) => (t.type as any) === 'dine_in')?.count).toBe(1);
       expect(result.kitchenBumpsCount).toBe(1);
       expect(result.avgPrepTimeMinutes).toBe(15);
       expect(result.tableTurnover[0]?.orderCount).toBe(1);

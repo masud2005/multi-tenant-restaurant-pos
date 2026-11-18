@@ -29,7 +29,7 @@ export const peopleApi = api3.injectEndpoints({
     // ---- Delivery ----
     deliveries: b.query<Order[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => money.listDeliveries(tenantId, branchId)), providesTags: ["Delivery", { type: "Order", id: "LIST" }] }),
     riders: b.query<Rider[], T<{ branchId: string }>>({ queryFn: ({ tenantId, branchId }) => run(() => money.listRiders(tenantId, branchId)), providesTags: ["Delivery"] }),
-    saveRider: b.mutation<Rider, T<{ id?: string; branchId: string; name: string; phone: string }>>({ queryFn: ({ tenantId, ...i }) => run(() => money.saveRider(tenantId, i)), invalidatesTags: ["Delivery"] }),
+    saveRider: b.mutation<Rider, T<{ id?: string | undefined; branchId: string; name: string; phone: string }>>({ queryFn: ({ tenantId, ...i }) => run(() => money.saveRider(tenantId, i)), invalidatesTags: ["Delivery"] }),
     deleteRider: b.mutation<{ success: boolean; message: string }, T<{ id: string }>>({ queryFn: ({ tenantId, id }) => run(() => money.deleteRider(tenantId, id)), invalidatesTags: ["Delivery"] }),
     updateDelivery: b.mutation<Order, T<{ orderId: string; status: DeliveryStatus; riderId?: string | undefined }>>({
       queryFn: ({ tenantId, ...i }) => run(() => money.updateDelivery(tenantId, i)),

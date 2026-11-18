@@ -542,37 +542,37 @@ export type AuditEntity = "order" | "inventory" | "staff" | "payment" | "table" 
 export interface AuditLog {
   id: string;
   tenantId: string;
-  branchId?: string | null;
-  actorId?: string | null;
+  branchId?: string | null | undefined;
+  actorId?: string | null | undefined;
   actorName: string;
-  actorRole?: string | null;
+  actorRole?: string | null | undefined;
   action: AuditAction | string;
   entity: AuditEntity | string;
-  entityId?: string | null;
+  entityId?: string | null | undefined;
   summary: string;
-  details?: string | null;
-  metadata?: Record<string, unknown> | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
+  details?: string | null | undefined;
+  metadata?: Record<string, unknown> | null | undefined;
+  ipAddress?: string | null | undefined;
+  userAgent?: string | null | undefined;
   createdAt: string;
 }
 
 export interface AuditLogStats {
   total: number;
-  today?: number;
-  criticalCount?: number;
-  byEntity?: Record<string, number>;
+  today?: number | undefined;
+  criticalCount?: number | undefined;
+  byEntity?: Record<string, number> | undefined;
 }
 
 export interface AuditLogQueryParams {
-  entity?: string;
-  action?: string;
-  branchId?: string;
-  search?: string;
-  startDate?: string;
-  endDate?: string;
-  page?: number;
-  limit?: number;
+  entity?: string | undefined;
+  action?: string | undefined;
+  branchId?: string | undefined;
+  search?: string | undefined;
+  startDate?: string | undefined;
+  endDate?: string | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
 }
 
 export interface PaginatedAuditLogs {
@@ -605,26 +605,26 @@ export interface SalesReport {
   totalOrders: number;
   avgOrderValue: number;
   metrics?: {
-    revenueGrowth?: number;
-    revenuePrevPeriod?: number;
-    prevPeriodLabel?: string;
-    grossSales?: number;
-    totalDiscounts?: number;
-    completedOrders?: number;
-    activeOrders?: number;
-    ordersGrowth?: number;
-    ordersAvgPerDay?: number;
-    aovGrowth?: number;
-    prevAov?: number;
-  };
+    revenueGrowth?: number | undefined;
+    revenuePrevPeriod?: number | undefined;
+    prevPeriodLabel?: string | undefined;
+    grossSales?: number | undefined;
+    totalDiscounts?: number | undefined;
+    completedOrders?: number | undefined;
+    activeOrders?: number | undefined;
+    ordersGrowth?: number | undefined;
+    ordersAvgPerDay?: number | undefined;
+    aovGrowth?: number | undefined;
+    prevAov?: number | undefined;
+  } | undefined;
   hourlySales: {
     hour: string;
     sales: number;
     orders: number;
-    label?: string;
-    period?: string;
-    isCurrent?: boolean;
-    isPeak?: boolean;
+    label?: string | undefined;
+    period?: string | undefined;
+    isCurrent?: boolean | undefined;
+    isPeak?: boolean | undefined;
   }[];
   dailySales: { date: string; fullDate?: string; sales: number; orders: number }[];
   topItems: {
@@ -684,5 +684,42 @@ export interface TenantSettingsInput {
   taxRate: number;
   serviceChargeRate: number;
   receiptFooter: string;
+}
+
+export type TransferStatus = "PENDING" | "IN_TRANSIT" | "COMPLETED" | "CANCELLED";
+
+export interface StockTransferLine {
+  id: string;
+  ingredientId: string;
+  ingredientName?: string | undefined;
+  unit?: string | undefined;
+  quantity: number;
+}
+
+export interface StockTransfer {
+  id: string;
+  tenantId: string;
+  fromBranchId: string;
+  fromBranch?: { id: string; name: string } | undefined;
+  fromBranchName?: string | undefined;
+  toBranchId: string;
+  toBranch?: { id: string; name: string } | undefined;
+  toBranchName?: string | undefined;
+  number: string;
+  status: TransferStatus;
+  notes?: string | null | undefined;
+  initiatedBy?: string | null | undefined;
+  receivedBy?: string | null | undefined;
+  sentAt?: string | null | undefined;
+  receivedAt?: string | null | undefined;
+  createdAt: string;
+  lines: StockTransferLine[];
+}
+
+export interface CreateStockTransferInput {
+  fromBranchId: string;
+  toBranchId: string;
+  notes?: string | undefined;
+  lines: { ingredientId: string; quantity: number }[];
 }
 

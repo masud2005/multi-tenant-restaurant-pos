@@ -349,7 +349,6 @@ function StaffDirectoryPage() {
 
       {list.isError && (
         <ErrorState
-          title="Couldn't load staff members"
           message="There was an issue connecting to the staff directory."
           onRetry={() => list.refetch()}
         />
@@ -397,7 +396,7 @@ function StaffDirectoryPage() {
                 // Staff member info with avatar initials
                 <div key="member" className="flex items-center gap-3 py-1">
                   <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs border border-primary/20 shrink-0">
-                    {s.initials || s.name.slice(0, 2).toUpperCase()}
+                    {(s as any).initials || s.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <div className="font-medium text-foreground">{s.name}</div>

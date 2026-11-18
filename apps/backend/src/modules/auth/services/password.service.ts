@@ -13,6 +13,13 @@ import {
   UnauthorizedException,
 } from '../../../common/exceptions/business.exception';
 
+export interface PasswordResetResponseData {
+  message: string;
+  emailSent: boolean;
+  resetUrl?: string;
+  token?: string;
+}
+
 @Injectable()
 export class PasswordService {
   private readonly logger = new Logger(PasswordService.name);
@@ -53,7 +60,7 @@ export class PasswordService {
 
     // Security best practice: return success without revealing if email is registered
     if (!user || !user.email) {
-      return ResponseHelper.success(
+      return ResponseHelper.success<PasswordResetResponseData>(
         {
           message:
             'If an account exists with this email, a password reset link has been sent.',
@@ -118,7 +125,7 @@ export class PasswordService {
       );
     }
 
-    return ResponseHelper.success(
+    return ResponseHelper.success<PasswordResetResponseData>(
       {
         message:
           'If an account exists with this email, a password reset link has been sent.',
