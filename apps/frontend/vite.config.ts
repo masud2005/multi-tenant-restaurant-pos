@@ -13,6 +13,6 @@ export default defineConfig({
       server: { entry: "server" },
     }),
     viteReact(),
-    nitro({ preset: "cloudflare-module" }),
+    nitro({ preset: process.env["NITRO_PRESET"] || (process.env["VERCEL"] ? "vercel" : "cloudflare-module") }),
   ],
 });

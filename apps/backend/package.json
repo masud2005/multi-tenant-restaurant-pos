@@ -26,6 +26,7 @@
     "ci:check": "npm run format && npm run lint && npm run prisma:validate && npm run build && npm run start:prod",
     "deploy:check": "docker compose --profile prod build --no-cache",
     "ci:fix": "npm run format:fix",
+    "typecheck": "tsc --noEmit",
     "test": "jest --config ./test/jest-e2e.json",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },

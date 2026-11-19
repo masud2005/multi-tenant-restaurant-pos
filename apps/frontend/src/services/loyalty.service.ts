@@ -51,7 +51,7 @@ export interface CreateLoyaltyTierInput {
   sortOrder?: number | undefined;
 }
 
-export interface UpdateLoyaltyTierInput extends Partial<CreateLoyaltyTierInput> {}
+export type UpdateLoyaltyTierInput = Partial<CreateLoyaltyTierInput>;
 
 /**
  * Fetch restaurant loyalty settings

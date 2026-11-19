@@ -9,6 +9,9 @@ node_modules/
 # Build outputs
 dist/
 .output/
+.vercel/
+.wrangler/
+.vinxi/
 build/
 
 # Environment files
