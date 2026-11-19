@@ -99,17 +99,17 @@ function GroupDialog({ group, onClose }: { group: ModifierGroup | null; onClose:
           })}
         >
           <div className="grid grid-cols-[1fr_80px_80px] gap-2">
-            <div className="space-y-1.5"><Label htmlFor="mg-name">Name</Label><Input id="mg-name" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
-            <div className="space-y-1.5"><Label htmlFor="mg-min">Min</Label><Input id="mg-min" inputMode="numeric" {...form.register("min")} /></div>
-            <div className="space-y-1.5"><Label htmlFor="mg-max">Max</Label><Input id="mg-max" inputMode="numeric" {...form.register("max")} /></div>
+            <div className="space-y-1.5"><Label htmlFor="mg-name">Name</Label><Input id="mg-name" placeholder="e.g. Spice Level / Choice of Sauce" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
+            <div className="space-y-1.5"><Label htmlFor="mg-min">Min</Label><Input id="mg-min" inputMode="numeric" placeholder="0" {...form.register("min")} /></div>
+            <div className="space-y-1.5"><Label htmlFor="mg-max">Max</Label><Input id="mg-max" inputMode="numeric" placeholder="1" {...form.register("max")} /></div>
           </div>
           <FieldError msg={e.min?.message ?? e.max?.message} />
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold">Options</legend>
             {opts.fields.map((f, idx) => (
               <div key={f.id} className="flex gap-2">
-                <Input aria-label="Option name" placeholder="Option" {...form.register(`options.${idx}.name`)} />
-                <Input aria-label="Option price" inputMode="decimal" className="w-28" placeholder="Price" {...form.register(`options.${idx}.price`)} />
+                <Input aria-label="Option name" placeholder="Option name (e.g. Extra Cheese)" {...form.register(`options.${idx}.name`)} />
+                <Input aria-label="Option price" inputMode="decimal" className="w-28" placeholder="+0.00" {...form.register(`options.${idx}.price`)} />
                 <Button type="button" size="icon" variant="ghost" aria-label="Remove option" disabled={opts.fields.length === 1} onClick={() => opts.remove(idx)}><Trash2 className="size-4" /></Button>
               </div>
             ))}

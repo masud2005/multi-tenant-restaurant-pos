@@ -223,6 +223,7 @@ export function BrandAmbienceTab() {
               <Label htmlFor="tenant-name">Restaurant Name</Label>
               <Input
                 id="tenant-name"
+                placeholder="e.g. Saffron & Charcoal Grill"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required

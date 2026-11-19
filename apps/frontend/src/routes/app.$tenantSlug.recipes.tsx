@@ -124,7 +124,7 @@ function RecipeEditor({ row, onClose }: { row: RecipeCostRow; onClose: () => voi
                     {(ings.data ?? []).filter((i) => i.key === l.ingredientKey || !used.has(i.key)).map((i) => <SelectItem key={i.key} value={i.key}>{i.name} ({i.unit})</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Input aria-label="Quantity" inputMode="decimal" className="w-24" disabled={!editable} value={l.qty} onChange={(e) => setLines((ls) => ls.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                <Input aria-label="Quantity" placeholder="0.00" inputMode="decimal" className="w-24" disabled={!editable} value={l.qty} onChange={(e) => setLines((ls) => ls.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
                 <span className="tabular w-24 text-right text-sm">{c ? money(c.lineCost) : "—"}</span>
                 {editable && <Button size="icon" variant="ghost" aria-label="Remove ingredient" onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></Button>}
               </div>

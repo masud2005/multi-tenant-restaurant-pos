@@ -109,7 +109,7 @@ export function ItemConfigDialog({ item, groups, onClose, onAdd }: Props) {
           ))}
           <div className="space-y-1.5">
             <Label htmlFor="item-notes">Kitchen note</Label>
-            <Textarea id="item-notes" value={notes} maxLength={140} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. no onions" rows={2} />
+            <Textarea id="item-notes" value={notes} maxLength={140} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Less spicy, no onions, extra sauce on the side" rows={2} />
           </div>
         </div>
         <DialogFooter className="items-center gap-3 sm:justify-between">

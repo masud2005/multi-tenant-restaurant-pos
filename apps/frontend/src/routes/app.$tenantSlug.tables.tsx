@@ -386,6 +386,7 @@ function CreateTableDialog({
                     type="number"
                     min={1}
                     max={50}
+                    placeholder="4"
                     required
                     value={seats}
                     onChange={(e) => setSeats(Math.max(1, parseInt(e.target.value, 10) || 1))}
@@ -583,6 +584,7 @@ function EditTableDialog({
                     type="number"
                     min={1}
                     max={50}
+                    placeholder="4"
                     required
                     value={seats}
                     onChange={(e) => setSeats(Math.max(1, parseInt(e.target.value, 10) || 1))}

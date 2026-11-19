@@ -39,7 +39,7 @@ function Categories() {
           if (await withToast(save({ tenantId: tenant.id, name }), `Category “${name.trim()}” added`)) setName("");
         }}
       >
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" aria-label="New category name" maxLength={40} />
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name (e.g. Appetizers, Drinks)" aria-label="New category name" maxLength={40} />
         <Button type="submit" disabled={!name.trim() || saving}><Plus className="size-4" /> Add</Button>
       </form>
       <ul className="divide-y rounded-lg border bg-card">
@@ -55,7 +55,7 @@ function Categories() {
                     if (await withToast(save({ tenantId: tenant.id, id: c.id, name: editName }), "Category renamed")) setEditId(null);
                   }}
                 >
-                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} aria-label="Category name" autoFocus />
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Category name" aria-label="Category name" autoFocus />
                   <Button size="icon" type="submit" aria-label="Save"><Check className="size-4" /></Button>
                   <Button size="icon" type="button" variant="ghost" aria-label="Cancel" onClick={() => setEditId(null)}><X className="size-4" /></Button>
                 </form>

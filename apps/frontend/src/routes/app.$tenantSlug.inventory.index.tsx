@@ -40,7 +40,7 @@ function StockLevels() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ingredients" className="w-full sm:w-64" aria-label="Search ingredients" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ingredients by name..." className="w-full sm:w-64" aria-label="Search ingredients" />
         <Button variant={lowOnly ? "secondary" : "outline"} size="sm" aria-pressed={lowOnly} onClick={() => setLowOnly((v) => !v)}>Low stock only</Button>
         <span className="text-sm text-muted-foreground">Stock value: <span className="tabular font-medium text-foreground">{money(value)}</span></span>
         {manage && <Button className="ml-auto" onClick={() => setEditing("new")}><Plus className="size-4" /> New ingredient</Button>}
@@ -118,13 +118,13 @@ function AdjustDialog({ ing, onClose }: { ing: Ingredient; onClose: () => void }
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="adj-qty">Quantity ({ing.unit})</Label>
-            <Input id="adj-qty" inputMode="decimal" {...form.register("qty")} />
+            <Input id="adj-qty" inputMode="decimal" placeholder="0.00" {...form.register("qty")} />
             <FieldError msg={form.formState.errors.qty?.message} />
             <p className={cn("text-xs", after < 0 ? "text-destructive" : "text-muted-foreground")}>After: {after} {ing.unit}</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="adj-note">Note</Label>
-            <Input id="adj-note" placeholder={mode === "waste" ? "e.g. spoiled" : "e.g. found extra stock"} {...form.register("note")} />
+            <Input id="adj-note" placeholder={mode === "waste" ? "e.g. Expired batch / spoiled during prep" : "e.g. Physical recount / found extra stock"} {...form.register("note")} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -166,11 +166,11 @@ function IngredientDialog({ ing, onClose }: { ing: Ingredient | null; onClose: (
             if (await withToast(save({ tenantId: tenant.id, branchId: branch.id, id: ing?.id, ...v }), ing ? "Ingredient updated" : "Ingredient added")) onClose();
           })}
         >
-          <div className="col-span-2 space-y-1.5"><Label htmlFor="ing-name">Name</Label><Input id="ing-name" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
-          <div className="space-y-1.5"><Label htmlFor="ing-unit">Unit</Label><Input id="ing-unit" placeholder="kg, l, pc" {...form.register("unit")} /><FieldError msg={e.unit?.message} /></div>
-          <div className="space-y-1.5"><Label htmlFor="ing-cost">Unit cost ({tenant.currency})</Label><Input id="ing-cost" inputMode="decimal" {...form.register("unitCost")} /></div>
-          <div className="space-y-1.5"><Label htmlFor="ing-reorder">Reorder level</Label><Input id="ing-reorder" inputMode="decimal" {...form.register("reorderLevel")} /></div>
-          {!ing && <div className="space-y-1.5"><Label htmlFor="ing-open">Opening stock</Label><Input id="ing-open" inputMode="decimal" {...form.register("openingStock")} /></div>}
+          <div className="col-span-2 space-y-1.5"><Label htmlFor="ing-name">Name</Label><Input id="ing-name" placeholder="e.g. Basmati Rice, Olive Oil" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
+          <div className="space-y-1.5"><Label htmlFor="ing-unit">Unit</Label><Input id="ing-unit" placeholder="e.g. kg, L, pcs, g" {...form.register("unit")} /><FieldError msg={e.unit?.message} /></div>
+          <div className="space-y-1.5"><Label htmlFor="ing-cost">Unit cost ({tenant.currency})</Label><Input id="ing-cost" inputMode="decimal" placeholder="0.00" {...form.register("unitCost")} /></div>
+          <div className="space-y-1.5"><Label htmlFor="ing-reorder">Reorder level</Label><Input id="ing-reorder" inputMode="decimal" placeholder="e.g. 10.00" {...form.register("reorderLevel")} /></div>
+          {!ing && <div className="space-y-1.5"><Label htmlFor="ing-open">Opening stock</Label><Input id="ing-open" inputMode="decimal" placeholder="e.g. 50.00" {...form.register("openingStock")} /></div>}
           <DialogFooter className="col-span-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="size-4 animate-spin" />} Save</Button>

@@ -1800,6 +1800,7 @@ function CustomersAndLoyaltyPage() {
                   id="tier-spend"
                   type="number"
                   min={0}
+                  placeholder="5000"
                   value={tierFormData.minSpend}
                   onChange={(e) =>
                     setTierFormData((prev) => ({
@@ -1818,6 +1819,7 @@ function CustomersAndLoyaltyPage() {
                   type="number"
                   step="0.05"
                   min={1.0}
+                  placeholder="1.25"
                   value={tierFormData.pointMultiplier}
                   onChange={(e) =>
                     setTierFormData((prev) => ({
@@ -1838,6 +1840,7 @@ function CustomersAndLoyaltyPage() {
                   type="number"
                   min={0}
                   max={100}
+                  placeholder="10"
                   value={tierFormData.discountPercent}
                   onChange={(e) =>
                     setTierFormData((prev) => ({

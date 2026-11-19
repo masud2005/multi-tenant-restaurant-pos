@@ -85,13 +85,13 @@ function ReturnDialog({ onClose }: { onClose: () => void }) {
                   <SelectTrigger aria-label="Ingredient" className="flex-1"><SelectValue placeholder="Ingredient" /></SelectTrigger>
                   <SelectContent>{(ings.data ?? []).filter((i) => i.id === l.ingredientId || !used.has(i.id)).map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.stock} {i.unit})</SelectItem>)}</SelectContent>
                 </Select>
-                <Input aria-label="Quantity" inputMode="decimal" className="w-24" placeholder="Qty" value={l.qty} onChange={(e) => setLines((ls) => ls.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
+                <Input aria-label="Quantity" inputMode="decimal" className="w-24" placeholder="0.00" value={l.qty} onChange={(e) => setLines((ls) => ls.map((x, i) => (i === idx ? { ...x, qty: e.target.value } : x)))} />
                 <Button size="icon" variant="ghost" aria-label="Remove line" disabled={lines.length === 1} onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></Button>
               </div>
             ))}
             <Button size="sm" variant="outline" onClick={() => setLines((ls) => [...ls, { ingredientId: "", qty: "" }])}><Plus className="size-4" /> Add item</Button>
           </fieldset>
-          <div className="space-y-1.5"><Label htmlFor="rt-reason">Reason</Label><Input id="rt-reason" placeholder="e.g. damaged in transit" value={reason} maxLength={120} onChange={(e) => setReason(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor="rt-reason">Reason</Label><Input id="rt-reason" placeholder="e.g. Damaged packaging, wrong specification, expired" value={reason} maxLength={120} onChange={(e) => setReason(e.target.value)} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

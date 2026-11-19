@@ -156,11 +156,11 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
             if (await withToast(save(input), res ? "Reservation updated" : "Reservation saved")) onClose();
           }}
         >
-          <Field label="Guest name" className="col-span-2">{(id) => <Input id={id} value={v.customerName} maxLength={60} onChange={set("customerName")} required />}</Field>
-          <Field label="Phone">{(id) => <Input id={id} type="tel" value={v.phone} maxLength={20} onChange={set("phone")} />}</Field>
-          <Field label="Party size">{(id) => <Input id={id} inputMode="numeric" value={v.partySize} onChange={set("partySize")} />}</Field>
+          <Field label="Guest name" className="col-span-2">{(id) => <Input id={id} placeholder="e.g. Farhana Ahmed" value={v.customerName} maxLength={60} onChange={set("customerName")} required />}</Field>
+          <Field label="Phone">{(id) => <Input id={id} type="tel" placeholder="e.g. +880 1711-000000" value={v.phone} maxLength={20} onChange={set("phone")} />}</Field>
+          <Field label="Party size">{(id) => <Input id={id} inputMode="numeric" placeholder="e.g. 4" value={v.partySize} onChange={set("partySize")} />}</Field>
           <Field label="Date & time">{(id) => <Input id={id} type="datetime-local" value={v.at} onChange={set("at")} required />}</Field>
-          <Field label="Duration (min)">{(id) => <Input id={id} inputMode="numeric" value={v.durationMin} onChange={set("durationMin")} />}</Field>
+          <Field label="Duration (min)">{(id) => <Input id={id} inputMode="numeric" placeholder="e.g. 90" value={v.durationMin} onChange={set("durationMin")} />}</Field>
           <Field label="Table" className="col-span-2">
             {(id) => (
               <Select value={v.tableId} onValueChange={(t) => setV({ ...v, tableId: t })}>
@@ -172,7 +172,7 @@ function ReservationDialog({ res, onClose }: { res: Reservation | null; onClose:
               </Select>
             )}
           </Field>
-          <Field label="Notes" className="col-span-2">{(id) => <Textarea id={id} value={v.notes} maxLength={140} onChange={set("notes")} />}</Field>
+          <Field label="Notes" className="col-span-2">{(id) => <Textarea id={id} placeholder="Special requests (e.g. Birthday celebration, window seat, high chair)..." value={v.notes} maxLength={140} onChange={set("notes")} />}</Field>
           <DialogFooter className="col-span-2 flex items-center justify-between sm:justify-between">
             {res && res.status !== "seated" ? (
               <Confirm
@@ -267,28 +267,28 @@ function ReservationSettingsDialog({ onClose }: { onClose: () => void }) {
             }}
           >
             <Field label="Dining duration (min)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.defaultDurationMin} onChange={set("defaultDurationMin")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="90" value={form.defaultDurationMin} onChange={set("defaultDurationMin")} required />}
             </Field>
             <Field label="Buffer time (min)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.bufferTimeMin} onChange={set("bufferTimeMin")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="30" value={form.bufferTimeMin} onChange={set("bufferTimeMin")} required />}
             </Field>
             <Field label="Early arrival (min)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.earlyArrivalWindowMin} onChange={set("earlyArrivalWindowMin")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="15" value={form.earlyArrivalWindowMin} onChange={set("earlyArrivalWindowMin")} required />}
             </Field>
             <Field label="No-show grace (min)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.noShowGracePeriodMin} onChange={set("noShowGracePeriodMin")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="15" value={form.noShowGracePeriodMin} onChange={set("noShowGracePeriodMin")} required />}
             </Field>
             <Field label="Min party size">
-              {(id) => <Input id={id} inputMode="numeric" value={form.minPartySize} onChange={set("minPartySize")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="1" value={form.minPartySize} onChange={set("minPartySize")} required />}
             </Field>
             <Field label="Max party size">
-              {(id) => <Input id={id} inputMode="numeric" value={form.maxPartySize} onChange={set("maxPartySize")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="20" value={form.maxPartySize} onChange={set("maxPartySize")} required />}
             </Field>
             <Field label="Max advance (days)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.maxAdvanceDays} onChange={set("maxAdvanceDays")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="30" value={form.maxAdvanceDays} onChange={set("maxAdvanceDays")} required />}
             </Field>
             <Field label="Min advance (hours)">
-              {(id) => <Input id={id} inputMode="numeric" value={form.minAdvanceHours} onChange={set("minAdvanceHours")} required />}
+              {(id) => <Input id={id} inputMode="numeric" placeholder="2" value={form.minAdvanceHours} onChange={set("minAdvanceHours")} required />}
             </Field>
             <DialogFooter className="col-span-2 mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

@@ -173,7 +173,7 @@ function PosPage() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="relative min-w-48 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search menu" className="pl-8" aria-label="Search menu" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search dishes, drinks, combos..." className="pl-8" aria-label="Search menu" />
           </div>
         </div>
         <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Categories">
@@ -300,11 +300,11 @@ function PosPage() {
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <Input aria-label="Guest name" placeholder="Guest name" value={cart.customerName} maxLength={60} onChange={(e) => dispatch(cartActions.setCustomer({ name: e.target.value, phone: cart.customerPhone }))} />
-            <Input aria-label="Phone" placeholder="Phone" value={cart.customerPhone} maxLength={20} onChange={(e) => dispatch(cartActions.setCustomer({ name: cart.customerName, phone: e.target.value }))} />
+            <Input aria-label="Guest name" placeholder="Guest name (e.g. Rahim)" value={cart.customerName} maxLength={60} onChange={(e) => dispatch(cartActions.setCustomer({ name: e.target.value, phone: cart.customerPhone }))} />
+            <Input aria-label="Phone" placeholder="Phone (e.g. 01711-000000)" value={cart.customerPhone} maxLength={20} onChange={(e) => dispatch(cartActions.setCustomer({ name: cart.customerName, phone: e.target.value }))} />
           </div>
           {cart.orderType === "delivery" && (
-            <Input aria-label="Delivery address" placeholder="Delivery address" value={cart.deliveryAddress ?? ""} maxLength={140} onChange={(e) => dispatch(cartActions.setDeliveryAddress(e.target.value))} />
+            <Input aria-label="Delivery address" placeholder="Delivery address (e.g. House 12, Road 5, Block B)" value={cart.deliveryAddress ?? ""} maxLength={140} onChange={(e) => dispatch(cartActions.setDeliveryAddress(e.target.value))} />
           )}
         </div>
 
@@ -440,7 +440,7 @@ function DiscountControl({ disabled, subtotal }: { disabled: boolean; subtotal: 
             setValue("");
           }}
         >
-          <Input inputMode="decimal" aria-label="Discount value" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === "percent" ? "%" : "Amount"} />
+          <Input inputMode="decimal" aria-label="Discount value" value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === "percent" ? "e.g. 10%" : "e.g. 150"} />
           <Button type="submit" size="sm">Apply</Button>
         </form>
         <form
@@ -458,7 +458,7 @@ function DiscountControl({ disabled, subtotal }: { disabled: boolean; subtotal: 
             }
           }}
         >
-          <Input aria-label="Promo code" placeholder="Promo code" className="uppercase" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} />
+          <Input aria-label="Promo code" placeholder="Promo code (e.g. LUNCH10)" className="uppercase" value={code} maxLength={16} onChange={(e) => setCode(e.target.value)} />
           <Button type="submit" size="sm" variant="secondary" disabled={promoState.isLoading}>Apply</Button>
         </form>
         {discount && <Button variant="ghost" size="sm" className="w-full" onClick={() => dispatch(cartActions.setDiscount(null))}>Remove discount</Button>}

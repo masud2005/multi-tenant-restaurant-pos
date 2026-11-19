@@ -80,7 +80,7 @@ export function PaymentDialog({ order, open, onOpenChange, onPaid }: { order: Or
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pay-amount">Amount to charge</Label>
-            <Input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="tabular" />
+            <Input id="pay-amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="tabular" />
             <div className="flex gap-1">
               <Button type="button" size="sm" variant="secondary" onClick={() => setAmount(String(due))}>Full</Button>
               <Button type="button" size="sm" variant="secondary" onClick={() => setAmount(String(round2(due / 2)))}>Half</Button>
@@ -90,7 +90,7 @@ export function PaymentDialog({ order, open, onOpenChange, onPaid }: { order: Or
           {method === "cash" ? (
             <div className="space-y-1.5">
               <Label htmlFor="pay-tendered">Cash received</Label>
-              <Input id="pay-tendered" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value)} className="tabular" />
+              <Input id="pay-tendered" inputMode="decimal" placeholder="0.00" value={tendered} onChange={(e) => setTendered(e.target.value)} className="tabular" />
               <div className="flex gap-1">
                 {quick.map((n) => <Button key={n} type="button" size="sm" variant="secondary" onClick={() => setTendered(String(n))}>{money(n)}</Button>)}
               </div>
@@ -99,7 +99,7 @@ export function PaymentDialog({ order, open, onOpenChange, onPaid }: { order: Or
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="pay-ref">Reference (optional)</Label>
-              <Input id="pay-ref" value={reference} maxLength={40} onChange={(e) => setReference(e.target.value)} placeholder={method === "card" ? "Last 4 digits / approval code" : "Transaction ID"} />
+              <Input id="pay-ref" value={reference} maxLength={40} onChange={(e) => setReference(e.target.value)} placeholder={method === "card" ? "Last 4 digits / approval code (e.g. 4242)" : "Transaction ID (e.g. TrxID / bKash)"} />
               <MockNotice>No card terminal or wallet is connected — the payment is recorded as approved.</MockNotice>
             </div>
           )}

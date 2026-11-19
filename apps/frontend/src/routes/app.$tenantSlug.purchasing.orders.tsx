@@ -144,8 +144,8 @@ function PoDialog({ po, onClose }: { po: PurchaseOrder | null; onClose: () => vo
                     <SelectTrigger aria-label="Ingredient" className="flex-1"><SelectValue placeholder="Ingredient" /></SelectTrigger>
                     <SelectContent>{(ings.data ?? []).filter((i) => i.id === l.ingredientId || !used.has(i.id)).map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.stock} {i.unit} on hand)</SelectItem>)}</SelectContent>
                   </Select>
-                  <Input aria-label="Quantity" inputMode="decimal" className="w-24" placeholder={`Qty ${ing?.unit ?? ""}`} value={l.qty} onChange={(e) => update(idx, { qty: e.target.value })} />
-                  <Input aria-label="Unit cost" inputMode="decimal" className="w-28" placeholder="Unit cost" value={l.unitCost} onChange={(e) => update(idx, { unitCost: e.target.value })} />
+                  <Input aria-label="Quantity" inputMode="decimal" className="w-24" placeholder={`Qty (${ing?.unit ?? "units"})`} value={l.qty} onChange={(e) => update(idx, { qty: e.target.value })} />
+                  <Input aria-label="Unit cost" inputMode="decimal" className="w-28" placeholder="Cost (0.00)" value={l.unitCost} onChange={(e) => update(idx, { unitCost: e.target.value })} />
                   <Button size="icon" variant="ghost" aria-label="Remove line" onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></Button>
                 </div>
               );
@@ -155,7 +155,7 @@ function PoDialog({ po, onClose }: { po: PurchaseOrder | null; onClose: () => vo
               <Button size="sm" variant="secondary" onClick={suggest}>Add low-stock items</Button>
             </div>
           </fieldset>
-          <Textarea aria-label="Notes" placeholder="Notes for supplier" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          <Textarea aria-label="Notes" placeholder="Delivery instructions or supplier notes (e.g. Deliver before 10 AM)..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           <p className="text-right text-sm">Total <span className="tabular ml-2 text-base font-bold">{money(total)}</span></p>
         </div>
         <DialogFooter>

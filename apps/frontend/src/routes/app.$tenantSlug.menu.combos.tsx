@@ -108,8 +108,8 @@ function ComboDialog({ combo, items, onClose }: { combo: Combo | null; items: Me
             if (await withToast(save({ tenantId: tenant.id, id: combo?.id, ...v }), "Combo saved")) onClose();
           })}
         >
-          <div className="space-y-1.5"><Label htmlFor="cb-name">Name</Label><Input id="cb-name" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
-          <div className="space-y-1.5"><Label htmlFor="cb-desc">Description</Label><Input id="cb-desc" {...form.register("description")} /></div>
+          <div className="space-y-1.5"><Label htmlFor="cb-name">Name</Label><Input id="cb-name" placeholder="e.g. Family Feast Combo" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
+          <div className="space-y-1.5"><Label htmlFor="cb-desc">Description</Label><Input id="cb-desc" placeholder="e.g. 2 Burgers, 1 Large Fries, and 2 Soft Drinks" {...form.register("description")} /></div>
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold">Included items</legend>
             {comps.fields.map((f, idx) => (
@@ -118,7 +118,7 @@ function ComboDialog({ combo, items, onClose }: { combo: Combo | null; items: Me
                   <SelectTrigger aria-label="Item"><SelectValue placeholder="Choose item" /></SelectTrigger>
                   <SelectContent>{items.map((i) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                 </Select>
-                <Input aria-label="Quantity" inputMode="numeric" className="w-20" {...form.register(`components.${idx}.qty`)} />
+                <Input aria-label="Quantity" placeholder="Qty" inputMode="numeric" className="w-20" {...form.register(`components.${idx}.qty`)} />
                 <Button type="button" size="icon" variant="ghost" aria-label="Remove item" onClick={() => comps.remove(idx)}><Trash2 className="size-4" /></Button>
               </div>
             ))}
@@ -128,7 +128,7 @@ function ComboDialog({ combo, items, onClose }: { combo: Combo | null; items: Me
           <div className="grid grid-cols-2 items-end gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="cb-price">Combo price ({tenant.currency})</Label>
-              <Input id="cb-price" inputMode="decimal" {...form.register("price")} />
+              <Input id="cb-price" inputMode="decimal" placeholder="0.00" {...form.register("price")} />
               <p className="text-xs text-muted-foreground">Items separately: {money(full)}</p>
             </div>
             <label className="flex items-center gap-2 pb-6 text-sm"><Switch checked={form.watch("available")} onCheckedChange={(v) => form.setValue("available", v)} /> Show on POS</label>

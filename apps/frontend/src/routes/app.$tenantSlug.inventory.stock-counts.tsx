@@ -54,7 +54,7 @@ function StockCounts() {
                 <tr key={i.id}>
                   <td className={`${td} font-medium`}>{i.name}</td>
                   <td className={`${td} tabular text-muted-foreground`}>{i.stock} {i.unit}</td>
-                  <td className={td}><Input aria-label={`Counted ${i.name}`} inputMode="decimal" className="h-8 w-28" value={raw} onChange={(e) => setValues((v) => ({ ...v, [i.id]: e.target.value }))} /></td>
+                  <td className={td}><Input aria-label={`Counted ${i.name}`} inputMode="decimal" placeholder="0.00" className="h-8 w-28" value={raw} onChange={(e) => setValues((v) => ({ ...v, [i.id]: e.target.value }))} /></td>
                   <td className={cn(td, "tabular", variance === null ? "text-muted-foreground" : variance < 0 ? "text-destructive" : variance > 0 ? "text-success" : "")}>
                     {variance === null ? "—" : `${variance > 0 ? "+" : ""}${variance} ${i.unit}`}
                   </td>
@@ -62,7 +62,7 @@ function StockCounts() {
               );
             })}
           </DataTable>
-          <Textarea className="mt-3" aria-label="Count notes" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          <Textarea className="mt-3" aria-label="Count notes" placeholder="Audit count notes (e.g. Month-end inventory physical verification)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setActive(false)}>Discard</Button>
             <Button

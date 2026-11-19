@@ -143,6 +143,7 @@ export function TaxesChargesTab() {
                     step="0.01"
                     min="0"
                     max="100"
+                    placeholder="7.50"
                     value={taxRate}
                     onChange={(e) => setTaxRate(e.target.value)}
                   />
@@ -159,6 +160,7 @@ export function TaxesChargesTab() {
                     step="0.01"
                     min="0"
                     max="100"
+                    placeholder="5.00"
                     value={serviceChargeRate}
                     onChange={(e) => setServiceChargeRate(e.target.value)}
                   />

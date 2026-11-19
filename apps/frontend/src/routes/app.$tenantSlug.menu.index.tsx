@@ -49,7 +49,7 @@ function MenuItems() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items" className="pl-8" aria-label="Search items" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search dishes, tags..." className="pl-8" aria-label="Search items" />
         </div>
         <Select value={cat} onValueChange={setCat}>
           <SelectTrigger className="w-44" aria-label="Category filter"><SelectValue /></SelectTrigger>
@@ -142,7 +142,7 @@ function ItemDialog({ item, onClose }: { item: MenuItem | null; onClose: () => v
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="mi-name">Name</Label>
-              <Input id="mi-name" {...form.register("name")} />
+              <Input id="mi-name" placeholder="e.g. Grilled Chicken Steak" {...form.register("name")} />
               <FieldError msg={e.name?.message} />
             </div>
             <div className="space-y-1.5">
@@ -155,16 +155,16 @@ function ItemDialog({ item, onClose }: { item: MenuItem | null; onClose: () => v
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="mi-price">Base price ({tenant.currency})</Label>
-              <Input id="mi-price" inputMode="decimal" {...form.register("price")} />
+              <Input id="mi-price" inputMode="decimal" placeholder="0.00" {...form.register("price")} />
               <FieldError msg={e.price?.message} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="mi-desc">Description</Label>
-              <Textarea id="mi-desc" rows={2} {...form.register("description")} />
+              <Textarea id="mi-desc" rows={2} placeholder="Brief description of dish, preparation or taste profile..." {...form.register("description")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="mi-tags">Tags (comma separated)</Label>
-              <Input id="mi-tags" placeholder="bestseller, veg" {...form.register("tags")} />
+              <Input id="mi-tags" placeholder="e.g. bestseller, spicy, chef-special" {...form.register("tags")} />
             </div>
             <label className="flex items-center gap-2 self-end pb-2 text-sm">
               <Switch checked={form.watch("available")} onCheckedChange={(v) => form.setValue("available", v)} /> Available on POS
@@ -175,8 +175,8 @@ function ItemDialog({ item, onClose }: { item: MenuItem | null; onClose: () => v
             <legend className="text-sm font-semibold">Sizes / variants</legend>
             {variants.fields.map((f, idx) => (
               <div key={f.id} className="flex gap-2">
-                <Input aria-label="Variant name" placeholder="e.g. Large" {...form.register(`variants.${idx}.name`)} />
-                <Input aria-label="Price change" inputMode="decimal" className="w-32" placeholder="+ price" {...form.register(`variants.${idx}.priceDelta`)} />
+                <Input aria-label="Variant name" placeholder="e.g. Large / Regular" {...form.register(`variants.${idx}.name`)} />
+                <Input aria-label="Price change" inputMode="decimal" className="w-32" placeholder="+0.00" {...form.register(`variants.${idx}.priceDelta`)} />
                 <Button type="button" size="icon" variant="ghost" aria-label="Remove variant" onClick={() => variants.remove(idx)}><Trash2 className="size-4" /></Button>
               </div>
             ))}

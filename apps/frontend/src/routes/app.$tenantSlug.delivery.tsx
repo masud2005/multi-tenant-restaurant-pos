@@ -295,7 +295,7 @@ function AddRider() {
           </p>
           <Input
             aria-label="Rider name"
-            placeholder="Name"
+            placeholder="Rider name (e.g. Karim)"
             value={name}
             maxLength={40}
             onChange={(e) => setName(e.target.value)}
@@ -303,7 +303,7 @@ function AddRider() {
           />
           <Input
             aria-label="Rider phone"
-            placeholder="Phone"
+            placeholder="Phone (e.g. 01711-000000)"
             value={phone}
             maxLength={20}
             onChange={(e) => setPhone(e.target.value)}
@@ -408,14 +408,14 @@ function ManageRidersDialog() {
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Input
-              placeholder="Rider Name"
+              placeholder="Rider name (e.g. Sohel Rana)"
               value={name}
               maxLength={40}
               onChange={(e) => setName(e.target.value)}
               required
             />
             <Input
-              placeholder="Phone (e.g. +8801...)"
+              placeholder="Phone (e.g. +880 1711-000000)"
               value={phone}
               maxLength={20}
               onChange={(e) => setPhone(e.target.value)}

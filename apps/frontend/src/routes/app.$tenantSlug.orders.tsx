@@ -82,7 +82,7 @@ function OrdersList() {
           }}
         >
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Order #, guest, table" className="pl-8" aria-label="Search orders" />
+          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Search by Order #, guest name, table..." className="pl-8" aria-label="Search orders" />
         </form>
       </div>
 

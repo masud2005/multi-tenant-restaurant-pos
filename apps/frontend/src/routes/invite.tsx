@@ -131,12 +131,12 @@ function InvitePage() {
           )}
           <div className="space-y-1.5">
             <Label htmlFor="name">Full name</Label>
-            <Input id="name" {...form.register("name")} />
+            <Input id="name" {...form.register("name")} placeholder="e.g. Tanvir Hossain" />
             {e.name && <p className="text-xs text-destructive">{e.name.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Create password</Label>
-            <Input id="password" type="password" {...form.register("password")} placeholder="Choose a secure password" />
+            <Input id="password" type="password" {...form.register("password")} placeholder="Min. 8 characters" />
             {e.password && <p className="text-xs text-destructive">{e.password.message}</p>}
           </div>
           <Button type="submit" className="w-full" disabled={isSubmitting}>

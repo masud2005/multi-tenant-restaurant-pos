@@ -49,8 +49,8 @@ function Expenses() {
         }}
       >
         <Field label="Category">{(id) => <select id={id} className={sel} value={v.category} onChange={(e) => setV({ ...v, category: e.target.value as ExpenseCategory })}>{Object.entries(CATS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}</Field>
-        <Field label="Description" className="md:col-span-2">{(id) => <Input id={id} value={v.description} maxLength={80} onChange={(e) => setV({ ...v, description: e.target.value })} required />}</Field>
-        <Field label="Amount">{(id) => <Input id={id} inputMode="decimal" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} required />}</Field>
+        <Field label="Description" className="md:col-span-2">{(id) => <Input id={id} placeholder="e.g. Daily vegetable market purchase / Utilities" value={v.description} maxLength={80} onChange={(e) => setV({ ...v, description: e.target.value })} required />}</Field>
+        <Field label="Amount">{(id) => <Input id={id} inputMode="decimal" placeholder="0.00" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} required />}</Field>
         <Field label="Paid from">{(id) => <select id={id} className={sel} value={v.paidFrom} onChange={(e) => setV({ ...v, paidFrom: e.target.value as "bank" | "cash_drawer" })}><option value="bank">Bank / card</option><option value="cash_drawer">Cash drawer</option></select>}</Field>
         <Field label="Date">{(id) => <Input id={id} type="date" value={v.date} onChange={(e) => setV({ ...v, date: e.target.value })} />}</Field>
         <div className="md:col-span-6"><Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="size-4 animate-spin" />} Record expense</Button></div>

@@ -59,7 +59,7 @@ function LoginPage() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" {...form.register("email")} aria-invalid={!!form.formState.errors.email} />
+          <Input id="email" type="email" autoComplete="email" placeholder="name@restaurant.com" {...form.register("email")} aria-invalid={!!form.formState.errors.email} />
           {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
         </div>
         <div className="space-y-1.5">
@@ -69,7 +69,7 @@ function LoginPage() {
               Forgot password?
             </Link>
           </div>
-          <Input id="password" type="password" autoComplete="current-password" {...form.register("password")} aria-invalid={!!form.formState.errors.password} />
+          <Input id="password" type="password" autoComplete="current-password" placeholder="••••••••" {...form.register("password")} aria-invalid={!!form.formState.errors.password} />
           {form.formState.errors.password && <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>}
         </div>
         <Button type="submit" className="w-full" disabled={isLoading}>

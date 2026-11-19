@@ -38,7 +38,7 @@ function Suppliers() {
   return (
     <div>
       <PageHeader title="Suppliers" description="Shared across all branches." actions={<Button onClick={() => setEditing("new")}><Plus className="size-4" /> New supplier</Button>} />
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers" className="mb-4 max-w-xs" aria-label="Search suppliers" />
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search suppliers by name, contact, phone..." className="mb-4 max-w-xs" aria-label="Search suppliers" />
       {list.isLoading && <Skeleton className="h-48" />}
       {list.isError && <ErrorState message="Couldn't load suppliers." onRetry={list.refetch} />}
       {list.data && rows.length === 0 && <EmptyState title="No suppliers" />}
@@ -99,12 +99,12 @@ function SupplierDialog({ supplier, onClose }: { supplier: Supplier | null; onCl
             if (await withToast(save({ tenantId: tenant.id, id: supplier?.id, ...v }), "Supplier saved")) onClose();
           })}
         >
-          <div className="col-span-2 space-y-1.5"><Label htmlFor="s-name">Name</Label><Input id="s-name" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
-          <div className="space-y-1.5"><Label htmlFor="s-contact">Contact person</Label><Input id="s-contact" {...form.register("contact")} /></div>
-          <div className="space-y-1.5"><Label htmlFor="s-phone">Phone</Label><Input id="s-phone" {...form.register("phone")} /></div>
-          <div className="col-span-2 space-y-1.5"><Label htmlFor="s-email">Email</Label><Input id="s-email" type="email" {...form.register("email")} /><FieldError msg={e.email?.message} /></div>
-          <div className="space-y-1.5"><Label htmlFor="s-supplies">Supplies</Label><Input id="s-supplies" placeholder="rice, flour" {...form.register("supplies")} /></div>
-          <div className="space-y-1.5"><Label htmlFor="s-terms">Payment terms</Label><Input id="s-terms" {...form.register("paymentTerms")} /></div>
+          <div className="col-span-2 space-y-1.5"><Label htmlFor="s-name">Name</Label><Input id="s-name" placeholder="e.g. Bengal Meat Co. Ltd" {...form.register("name")} /><FieldError msg={e.name?.message} /></div>
+          <div className="space-y-1.5"><Label htmlFor="s-contact">Contact person</Label><Input id="s-contact" placeholder="e.g. Tanvir Ahmed (Manager)" {...form.register("contact")} /></div>
+          <div className="space-y-1.5"><Label htmlFor="s-phone">Phone</Label><Input id="s-phone" placeholder="e.g. +880 1711-000111" {...form.register("phone")} /></div>
+          <div className="col-span-2 space-y-1.5"><Label htmlFor="s-email">Email</Label><Input id="s-email" type="email" placeholder="e.g. sales@bengalmeat.com" {...form.register("email")} /><FieldError msg={e.email?.message} /></div>
+          <div className="space-y-1.5"><Label htmlFor="s-supplies">Supplies</Label><Input id="s-supplies" placeholder="e.g. Fresh meat, poultry, dairy" {...form.register("supplies")} /></div>
+          <div className="space-y-1.5"><Label htmlFor="s-terms">Payment terms</Label><Input id="s-terms" placeholder="e.g. Net 15, Net 30, COD" {...form.register("paymentTerms")} /></div>
           <label className="col-span-2 flex items-center gap-2 text-sm"><Switch checked={form.watch("active")} onCheckedChange={(v) => form.setValue("active", v)} /> Active (can receive new orders)</label>
           <DialogFooter className="col-span-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

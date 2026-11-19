@@ -101,10 +101,10 @@ function ReceiveDialog({ po, onClose }: { po: PurchaseOrder; onClose: () => void
                 <td className={`${td} tabular`}>{l.qty} {l.unit}</td>
                 <td className={`${td} tabular text-muted-foreground`}>{l.receivedQty}</td>
                 <td className={td}>
-                  <Input aria-label={`Receive ${l.name}`} inputMode="decimal" className="h-8 w-24" disabled={remaining <= 0} value={v.qty} onChange={(e) => setVals((s) => ({ ...s, [l.ingredientId]: { ...v, qty: e.target.value } }))} />
+                  <Input aria-label={`Receive ${l.name}`} inputMode="decimal" placeholder="0.00" className="h-8 w-24" disabled={remaining <= 0} value={v.qty} onChange={(e) => setVals((s) => ({ ...s, [l.ingredientId]: { ...v, qty: e.target.value } }))} />
                 </td>
                 <td className={td}>
-                  <Input aria-label={`Cost ${l.name}`} inputMode="decimal" className="h-8 w-24" value={v.cost} onChange={(e) => setVals((s) => ({ ...s, [l.ingredientId]: { ...v, cost: e.target.value } }))} />
+                  <Input aria-label={`Cost ${l.name}`} inputMode="decimal" placeholder="0.00" className="h-8 w-24" value={v.cost} onChange={(e) => setVals((s) => ({ ...s, [l.ingredientId]: { ...v, cost: e.target.value } }))} />
                 </td>
               </tr>
             );

@@ -56,7 +56,7 @@ function OpenForm() {
         void withToast(openS({ tenantId: tenant.id, branchId: branch.id, openingFloat: num(float), by: user.name }), "Cash drawer opened");
       }}
     >
-      <Field label="Opening float" className="flex-1" hint="Cash in the drawer at the start of the shift">{(id) => <Input id={id} inputMode="decimal" value={float} onChange={(e) => setFloat(e.target.value)} required />}</Field>
+      <Field label="Opening float" className="flex-1" hint="Cash in the drawer at the start of the shift">{(id) => <Input id={id} inputMode="decimal" placeholder="0.00" value={float} onChange={(e) => setFloat(e.target.value)} required />}</Field>
       <Button type="submit" disabled={isLoading} className="mb-5">{isLoading && <Loader2 className="size-4 animate-spin" />} Open drawer</Button>
     </form>
   );
@@ -92,8 +92,8 @@ function OpenDrawer({ s }: { s: CashSessionView }) {
         <div className="mt-4 space-y-2 border-t pt-3">
           <p className="text-sm font-semibold">Pay-in / pay-out</p>
           <div className="grid grid-cols-2 gap-2">
-            <Input inputMode="decimal" aria-label="Amount" placeholder="Amount" value={amt} onChange={(e) => setAmt(e.target.value)} />
-            <Input aria-label="Reason" placeholder="Reason" maxLength={60} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <Input inputMode="decimal" aria-label="Amount" placeholder="0.00" value={amt} onChange={(e) => setAmt(e.target.value)} />
+            <Input aria-label="Reason" placeholder="Reason (e.g. Petty cash / Supplier payment)" maxLength={60} value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" disabled={entryState.isLoading} onClick={() => add("in")}>Pay in</Button>
@@ -115,13 +115,13 @@ function OpenDrawer({ s }: { s: CashSessionView }) {
         }}
       >
         <h2 className="font-semibold">Close shift</h2>
-        <Field label="Counted cash">{(id) => <Input id={id} inputMode="decimal" value={counted} onChange={(e) => setCounted(e.target.value)} required />}</Field>
+        <Field label="Counted cash">{(id) => <Input id={id} inputMode="decimal" placeholder="0.00" value={counted} onChange={(e) => setCounted(e.target.value)} required />}</Field>
         {diff !== null && Number.isFinite(diff) && (
           <p className={cn("text-sm font-semibold", Math.abs(diff) < 0.005 ? "text-success" : "text-destructive")}>
             {Math.abs(diff) < 0.005 ? "Drawer balances" : `${diff > 0 ? "Over" : "Short"} by ${money(Math.abs(diff))}`}
           </p>
         )}
-        <Field label="Notes">{(id) => <Input id={id} value={notes} maxLength={140} onChange={(e) => setNotes(e.target.value)} />}</Field>
+        <Field label="Notes">{(id) => <Input id={id} placeholder="Shift close notes / discrepancy remarks..." value={notes} maxLength={140} onChange={(e) => setNotes(e.target.value)} />}</Field>
         <Button type="submit" disabled={closeState.isLoading}>{closeState.isLoading && <Loader2 className="size-4 animate-spin" />} Close shift</Button>
       </form>
     </div>

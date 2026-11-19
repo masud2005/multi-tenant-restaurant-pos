@@ -188,7 +188,7 @@ function OrderDetail() {
             <AlertDialogTitle>Void order {o.number}?</AlertDialogTitle>
             <AlertDialogDescription>The kitchen ticket is cancelled and the table is released. This can't be undone.</AlertDialogDescription>
           </AlertDialogHeader>
-          <Textarea aria-label="Reason" placeholder="Reason (required)" value={voidReason} maxLength={140} onChange={(e) => setVoidReason(e.target.value)} />
+          <Textarea aria-label="Reason" placeholder="Reason for voiding order (e.g. Guest left / Order duplicate)" value={voidReason} maxLength={140} onChange={(e) => setVoidReason(e.target.value)} />
           <AlertDialogFooter>
             <AlertDialogCancel>Keep order</AlertDialogCancel>
             <AlertDialogAction

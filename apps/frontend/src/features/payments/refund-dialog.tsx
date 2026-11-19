@@ -37,7 +37,7 @@ export function RefundDialog({ order, open, onOpenChange }: { order: Order; open
             if (await withToast(refund({ tenantId: tenant.id, orderId: order.id, amount: num(amount), method, reason, by: user.name }), "Refund issued")) onOpenChange(false);
           }}
         >
-          <Field label="Amount">{(id) => <Input id={id} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />}</Field>
+          <Field label="Amount">{(id) => <Input id={id} inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />}</Field>
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">Refund to</legend>
             <div className="flex gap-2">
@@ -46,7 +46,7 @@ export function RefundDialog({ order, open, onOpenChange }: { order: Order; open
               ))}
             </div>
           </fieldset>
-          <Field label="Reason">{(id) => <Textarea id={id} value={reason} maxLength={140} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Dish returned" />}</Field>
+          <Field label="Reason">{(id) => <Textarea id={id} value={reason} maxLength={140} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Dish returned / Wrong item prepared" />}</Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" variant="destructive" disabled={isLoading || !reason.trim()}>{isLoading && <Loader2 className="size-4 animate-spin" />} Refund</Button>

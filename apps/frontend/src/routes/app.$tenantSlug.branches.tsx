@@ -64,9 +64,9 @@ function BranchDialog({ b, onClose }: { b: Branch | null; onClose: () => void })
             if (await withToast(save({ tenantId: tenant.id, id: b?.id, ...v }), "Branch saved")) onClose();
           }}
         >
-          <Field label="Name">{(id) => <Input id={id} value={v.name} maxLength={40} onChange={(e) => setV({ ...v, name: e.target.value })} required />}</Field>
-          <Field label="Address">{(id) => <Input id={id} value={v.address} maxLength={120} onChange={(e) => setV({ ...v, address: e.target.value })} />}</Field>
-          <Field label="Phone">{(id) => <Input id={id} type="tel" value={v.phone} maxLength={30} onChange={(e) => setV({ ...v, phone: e.target.value })} />}</Field>
+          <Field label="Name">{(id) => <Input id={id} placeholder="e.g. Dhanmondi Outlet" value={v.name} maxLength={40} onChange={(e) => setV({ ...v, name: e.target.value })} required />}</Field>
+          <Field label="Address">{(id) => <Input id={id} placeholder="e.g. House 45, Road 27, Dhanmondi, Dhaka" value={v.address} maxLength={120} onChange={(e) => setV({ ...v, address: e.target.value })} />}</Field>
+          <Field label="Phone">{(id) => <Input id={id} type="tel" placeholder="e.g. +880 1711-000222" value={v.phone} maxLength={30} onChange={(e) => setV({ ...v, phone: e.target.value })} />}</Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isLoading}>{isLoading && <Loader2 className="size-4 animate-spin" />} Save</Button>

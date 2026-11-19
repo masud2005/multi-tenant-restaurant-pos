@@ -1326,6 +1326,7 @@ function Roles() {
               </Label>
               <Input
                 id="edit-role-name"
+                placeholder="e.g. Sommelier, Shift Lead, Barista"
                 value={editRoleForm.name}
                 onChange={(e) => setEditRoleForm((prev) => ({ ...prev, name: e.target.value }))}
                 required
@@ -1336,6 +1337,7 @@ function Roles() {
               <Label htmlFor="edit-role-desc">Role Description</Label>
               <Textarea
                 id="edit-role-desc"
+                placeholder="What responsibilities and modules does this role cover?"
                 rows={2}
                 value={editRoleForm.description}
                 onChange={(e) => setEditRoleForm((prev) => ({ ...prev, description: e.target.value }))}
